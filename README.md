@@ -1,209 +1,175 @@
 # Auto-Seedbox-PT (ASP)
 
-🚀 **专为 PT 玩家打造的终极服务器自动化部署与极限调优工具**
+🚀 **PT Seedbox 一键部署 + 场景化调优（qBittorrent / Vertex / FileBrowser）**  
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![System](https://img.shields.io/badge/System-Debian%20%7C%20Ubuntu-green.svg)]()
+[![System](https://img.shields.io/badge/System-Debian%2010%2B%20%7C%20Ubuntu%2020.04%2B-green.svg)]()
 [![Architecture](https://img.shields.io/badge/Arch-x86__64%20%7C%20arm64-orange.svg)]()
 
 <p align="left">
-    <a href="#-核心特性">功能特性</a> • 
-    <a href="#-快速开始">快速部署</a> • 
-    <a href="#-参数详解">参数配置</a> • 
-    <a href="#-架构解析">架构解析</a> • 
-    <a href="#-常见问题-faq">常见问题</a>
+  <a href="#features">核心特性</a> •
+  <a href="#quick-start">快速开始</a> •
+  <a href="#parameters">参数详解</a> •
+  <a href="#architecture">架构解析</a> •
+  <a href="#uninstall">卸载与清理</a> •
+  <a href="#recommendations">推荐方案</a> •
+  <a href="#faq">常见问题</a>
 </p>
 
 **Auto-Seedbox-PT** 是一个高度智能化的 Shell 脚本，旨在彻底简化 PT 专用服务器（Seedbox）的部署流程。它不仅能一键安装 qBittorrent、Vertex 和 FileBrowser，更内置了极其硬核的**系统级内核调优引擎**。
 
-无论你是使用昂贵的万兆独立服务器抢首发，还是使用便宜的轻量 VPS 长期养老，或者想要保种刷流的，ASP 都能根据你的硬件环境**自动注入最完美的底层参数以及qBittorrent配置参数**，榨干服务器的每一滴性能。
+专注于 **刷流峰值** 与 **系统稳定** 的平衡：支持 **v4/v5**、**Mode 1/2**、**SSD/HDD** 自适配，并可选启用 **Mode 1 运行时动态控制器（`-a`）**。
+
+
 
 ---
 
-## ✨ 核心特性
+## <a id="features"></a>✨ 核心特性
 
-### ⚔️ 双模调优引擎 (Dual-Mode Tuning)
-首创场景化调优模式，拒绝一刀切的无脑打药：
-* 🏎️ **极限刷流模式 (`-m 1`)**：专为大内存、NVMe 独服打造。强制锁定 CPU 最高睿频、暴增 TCP 发送/接收缓冲区至 1GB、彻底解除 Socket 并发封印，并针对高并发网络环境深度优化（内存不能低于4G）。
-* 🛡️ **均衡保种模式 (`-m 2`)**：专为保种刷流、长期自用 VPS/NAS 等打造。极致释放 I/O 性能，保障低负载长期挂机，挂载数千种子亦稳如泰山（均衡模式依然进行特殊调优，只是并没有太过暴力）。
-* 🧠 **硬件防呆机制**：若选择极限模式但机器物理内存 `<4GB`，脚本将强制介入并降级为均衡模式，100% 防止系统 OOM 死机。
+### ⚔️ 双模式调优（Mode 1 / Mode 2）
+- 🏎️ **Mode 1（`-m 1`）**：面向抢种刷流，强调连接建立效率与并发能力；内存不足自动降级保护（<4GB 强制切到 Mode 2）。
+- 🛡️ **Mode 2（`-m 2`）**：面向长期保种，参数更平滑，兼顾持续上传与低波动。
 
-### 📦 底层依赖精准锁定 (libtorrent Version Lock)
-摒弃繁琐的手动试错，脚本会自动抓取静态编译包并匹配最完美的底层库：
-* **v4 模式 (4.3.9 + v1 引擎)**：强制绑定 **libtorrent v1.2.x**。精准控制内存缓存，规避内存泄漏，单核效率极高，是 PT 圈公认的保种神油养老版。
-* **v5 模式 (最新/指定版 + 极致 I/O)**：强制绑定 **libtorrent v2.0.x**。彻底颠覆传统的内存映射（MMap）带来的卡顿，脚本会**强制接管 v5.x 的底层设定，开启 POSIX 和 Direct I/O（绕过系统缓存）**。配合大内存与高速 NVMe，彻底释放硬件潜能，是目前万兆网络抢首发的最强利器。
+### 🧠 Mode 1 动态控制器（可选 `-a`）
+- 仅对 **Mode 1** 生效，默认关闭（用户显式开启：`-a`）。
+- 定时采样 **MemAvailable** 与 **PSI（若可用）**，在 **Boost / Normal / Guard** 档位间切换。
+- 通过 qB WebAPI 动态调整：`connection_speed`、`half-open`、`per-torrent 连接`、`send buffer watermark/factor`。
+- PSI 不可用时自动回退为 MemAvailable-only，并写入一次性告警到 journald。
 
-### 🎬 独家 FileBrowser 极客扩展 (MediaInfo 深度集成)
-不仅仅是安装 FileBrowser！脚本会在底层为你挂载一套零侵入的 MediaInfo 微服务架构，专为 PT 发种与查阅打造：
-* **无缝右键集成**：在 FileBrowser 网页中右键点击任意视频文件（支持 `.mkv`, `.mp4`, `.ts`, `.iso` 等 10+ 格式），即可直接唤出 MediaInfo 面板。
-* **暗黑极客风 UI**：采用类似 VS Code 的高对比度渲染引擎，对 `General`、`Video`、`Audio`、`Text` 等不同媒体轨道进行色彩高亮分类，赏心悦目。
-* **一键排版复制**：内置兼容各种浏览器环境的复制引擎，一键生成等宽对齐的标准 CLI 文本格式，极大提升发种效率。
+### 💽 SSD/HDD 自适应
+- 基于 **Downloads 所在挂载盘**识别盘型（`rotational`），按 SSD/HDD 分别选择更合适的 I/O/缓冲策略。
+- v5 在 HDD 场景默认更保守，SSD/NVMe 场景更激进；v4/v5 均按盘型与内存分档。
 
-### 🌐 网络感知与极致容错
-* **拥塞算法智能嗅探**：极限模式下，自动侦测并挂载系统内已有的 `BBRx` 或 `BBRv3` 等魔改算法；若无第三方内核则安全退回原生 BBR，绝不强行换内核导致机器变砖。
-* **一键无缝搬家**：支持直接填入 ZIP 备份直链，自动还原 Vertex 数据。内置强大的 Python 清洗引擎，无惧任何外壳嵌套或 BOM 乱码，**智能展平数据结构**并精准替换 qBit 网关 IP 与面板密码。
-* **踏雪无痕卸载**：`--uninstall` 模式不仅清理容器，更能将打药的 Sysctl 参数、脏页回写策略、网卡队列、甚至 CPU 调度策略动态回滚至系统初始状态。
+### 🧱 系统级护栏与可回滚调优
+- systemd `MemoryHigh/MemoryMax` 约束 qB 进程，避免极限并发导致系统卡死。
+- 可选 sysctl/网络/队列调优（`-t`），并提供 **可回滚卸载**。
 
----
-
-## 🖥️ 环境要求
-
-* 🐧 **操作系统**: Debian 10+ / Ubuntu 20.04+ (强烈建议在纯净系统下运行)
-* ⚙️ **硬件架构**: x86_64 (AMD64) / aarch64 (ARM64)
-* 🔑 **权限要求**: 必须使用 `root` 用户运行
+### 📦 组件化部署
+- **Vertex**（Docker）：支持备份恢复与配置清洗（自动修正 qB 地址与账号密码）。
+- **FileBrowser + MediaInfo**（Docker + Nginx）：网页内可直接查看媒体信息（本地微服务 + Nginx 注入）。
 
 ---
 
-## ⚡ 快速开始
+## <a id="quick-start"></a>⚡ 快速开始
 
-> **💡 提示**：以下命令中的 `用户名` 和 `密码` 请自行替换。密码长度必须 **≥ 8 位**。
+> 统一密码要求：**≥ 12 位**
 
-### 1. 极致抢跑（独立服务器 / 刷流首选）
-安装最新版 qBittorrent v5 + 附加组件，启用 **极限刷流模式**（锁定 CPU，暴增网络并发，开启 Direct I/O）：
+### 1) Mode 1 抢种刷流（推荐可选 `-a`）
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) -u 用户名 -p 密码 -q 5 -m 1 -v -f -t
+bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) \
+  -u 用户名 -p 密码 -q 5 -m 1 -v -f -t -a
 ```
 
-### 2. 高性能 VPS 抢跑（如 Netcup G9.5 / 中大内存 VPS 首选）
-安装响应最快的 qBittorrent 4.3.9 + 附加组件，启用 极限刷流模式（利用 v4 物理内存缓存优势，配合脚本激进并发墙，榨干 2.5G/10G 端口）：
+### 2) G9.5 / 8G 常见刷流（推荐 v4.3.9 + Mode 1，可选 `-a`）
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) -u 用户名 -p 密码 -q 4.3.9 -m 1 -v -f -t
+bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) \
+  -u 用户名 -p 密码 -q 4.3.9 -m 1 -v -f -t -a
 ```
 
-### 3. 均衡模式（保种刷流 首选）
-安装最稳的 qBittorrent 4.3.9 + 附加组件，启用 **均衡保种模式**（稳定低负载，大缓存）：
+### 3) Mode 2 稳定保种（长期挂机）
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) -u 用户名 -p 密码 -q 4.3.9 -m 2 -v -f -t
+bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) \
+  -u 用户名 -p 密码 -q 4.3.9 -m 2 -v -f -t
 ```
 
-### 4. 自定义端口（交互模式）
-使用 `-o` 参数在安装时手动指定各个组件的端口：
+### 4) 自定义端口（交互）
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) -u 用户名 -p 密码 -v -f -t -o
+bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) \
+  -u 用户名 -p 密码 -v -f -t -o
 ```
 
-### 5. 精准版本 & 自定义端口（交互模式）
-精准安装 `5.0.4` 版本，并使用 `-o` 参数在安装时手动指定各个组件的端口：
+### 5) Vertex 备份恢复
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) -u 用户名 -p 密码 -q 5.0.4 -v -f -t -o
-```
-
-### 6. 基础极简版（仅 qBittorrent）
-不装面板和文件管理器，纯净部署 qBit 和基础系统优化：
-```bash
-bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) -u 用户名 -p 密码 -q 5 -m 2 -t
-```
-
-### 6. 一键搬家（恢复 Vertex 数据模式）
-从旧服务器迁移，自动下载备份包，智能展平嵌套结构，并抹平配置覆盖原有密码：
-```bash
-bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) -u 用户名 -p 密码 -m 2 -v -f -t -d "https://your-server.com/backup/vertex.zip" -k "zip_password"
+bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) \
+  -u 用户名 -p 密码 -m 2 -v -f -t -d "https://your-server.com/backup/vertex.zip" -k "zip_password"
 ```
 
 ---
 
-## 📝 参数详解
+## <a id="parameters"></a>📝 参数详解
 
 | 参数 | 必填 | 描述 | 示例 |
 |:---:|:---:|---|---|
 | `-u` | ✅ | WebUI 及面板用户名 | `-u admin` |
 | `-p` | ✅ | 统一密码（必须 ≥ 12 位） | `-p mysecurepass` |
-| `-m` | ⭕ | **调优模式**：`1`(极限刷流) 或 `2`(均衡保种)。默认 `1` | `-m 1` |
-| `-q` | ⭕ | qBit 版本（默认5.0.4）：`4.3.9`、`5`、`latest` 或 `5.0.4` 等确切版本 | `-q 5.0.4` |
-| `-c` | ⭕ | 强制指定缓存大小(MB)。*若不填，脚本将根据物理内存自动计算最佳值* | `-c 4096` |
-| `-v` | ⭕ | 部署 Vertex 面板 (Docker) | `-v` |
-| `-f` | ⭕ | 部署 FileBrowser 文件管理器 (Docker) | `-f` |
-| `-t` | ⭕ | 启用系统级内核与网络调优 (强烈推荐) | `-t` |
-| `-o` | ⭕ | 自定义端口 (进入终端交互式询问) | `-o` |
-| `-d` | ⭕ | Vertex 备份 zip或tar.gz 远程下载直链 | `-d http://...` |
-| `-k` | ⭕ | Vertex 备份 zip或tar.gz 解压密码 (若无则不填) | `-k 123456` |
+| `-m` | ⭕ | 模式：`1`(极限刷流) / `2`(均衡保种)，默认 `1` | `-m 1` |
+| `-q` | ⭕ | qB 版本：`4.3.9`、`5`、`latest` 或指定版本 | `-q 5.0.4` |
+| `-c` | ⭕ | 指定缓存/工作集 (MiB)，不填则自动分档 | `-c 2048` |
+| `-t` | ⭕ | 启用系统级内核与网络调优 | `-t` |
+| `-a` | ⭕ | 启用 Mode 1 动态控制器（仅 `-m 1` 生效） | `-a` |
+| `-v` | ⭕ | 部署 Vertex (Docker) | `-v` |
+| `-f` | ⭕ | 部署 FileBrowser (Docker) | `-f` |
+| `-o` | ⭕ | 自定义端口（交互式询问） | `-o` |
+| `-d` | ⭕ | Vertex 备份 zip/tar.gz 下载直链 | `-d http://...` |
+| `-k` | ⭕ | Vertex 备份解压密码 | `-k 123456` |
 
 ---
 
-## 🗑️ 卸载与清理
+## <a id="architecture"></a>🚀 架构解析
 
-本脚本自带极度硬核的卸载逻辑，支持系统状态无损回滚。
+刷流瓶颈通常由三类因素交替主导：
 
-**🔥 彻底卸载（删库跑路级别）**
-⚠️ **警告**：这将清除所有配置文件、容器映像，并**动态回滚** CPU 频率、TCP 缓冲区、拥塞窗口等所有深层内核参数至系统默认值！（交互中可选择是否保留 `Downloads` 下载数据目录）
+1) **连接建立与握手**：`connection_speed`、`half-open`、`max_connec(_per_torrent)`  
+2) **磁盘 I/O**：`async_io_threads`、DiskIO 模式、脏页回写策略  
+3) **内存压力**：page cache、qB cache/working set、socket/send buffer
+
+本项目采用 **静态基线 +（可选）动态闭环** 的方式：
+- 安装阶段按 **V4/V5、Mode 1/2、SSD/HDD、内存档位** 下发静态参数；
+- Mode 1 可选启用 `-a`：运行时采样内存压力，自动在 **Boost / Guard** 间切换，避免需要人工盯盘。
+
+动态控制器日志：
+```bash
+journalctl -t asp-qb-autotune -n 50
+```
+
+---
+
+## <a id="uninstall"></a>🗑️ 卸载与清理
+
+> `--uninstall` 会清理服务/容器/配置，并回滚 sysctl、limits、扩展服务与相关规则（可交互选择是否删除 Downloads 数据目录）。
+
 ```bash
 bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) --uninstall
 ```
 
 ---
 
-## 🚀 架构解析
+## <a id="recommendations"></a>✅ 推荐方案
 
-对于刷流来说，速度瓶颈通常在三种之间来回切换：
+| 场景 | 推荐组合 | 说明 |
+|---|---|---|
+| **千兆 + HDD** | `4.3.9 + -m 2` | 以平滑策略优先稳定，降低随机 I/O 抖动 |
+| **2.5G + SSD + 8–16G（如 G9.5）** | `4.3.9 + -m 1 (+ -a)` | 静态并发墙 +（可选）动态护栏/爆发档，稳定跑满更省心 |
+| **万兆 + NVMe + ≥32G** | `5.x + -m 1 (+ -a)` | v5 更适合高速盘与大内存场景，上限更高 |
 
-1.网络握手/连接建立速度（connection_speed、half-open、max_connec）
-
-2.磁盘 IO（aio_threads、DiskIORead/WriteMode、file_pool_size、dirty_ratio）
-
-3.内存压力（page cache + qB cache/working set + socket buffer + send buffer）
-
-如果简单的使用静态参数只能冲击一个场景，不满足我想要的刷流/保种兼容；
-
-目前想法是采用**动态闭环**的方式，做到在“抢种爆发期”把连接/握手拉高，在“系统压力上来时”自动收敛，做到：峰值更高（爆发期更激进）、更不容易 OOM（压力期自动退让）、长时间稳定（不靠人守着）
-
-3.X版本将会重大改变，引入这个动态方式：定时采样 PSI/IO/qb 状态，通过WebAPI动态setPreferences，做成一个运行时调度器！！！
-
+> 想在 G9.5 上尝试 v5：建议 `5 + -m 1 -a`，并适当控制种子数量/碎文件场景的 I/O 压力。
 
 ---
 
-## ❓ 常见问题 (FAQ)
+## <a id="faq"></a>❓ 常见问题 (FAQ)
 
-**Q: 为什么极限模式没有自动安装 BBRx 或者 BBRv3？**
+**Q: 为什么不自动安装 BBRx / BBRv3？**  
+A: 脚本仅在系统已具备相关拥塞算法时启用，不强制更换内核，避免驱动/启动风险。
 
-**A:** 极限模式（默认或者 `-m 1`），会自动智能判断系统是否已安装 BBRx 或者 BBRv3。如果有，脚本将**自动激发**其潜能；但脚本**不会强制为您安装**新的内核，以防止出现底层驱动不兼容导致服务器无法开机变砖的情况。如果您追求极致，请自行修改内核，脚本会自行适应。
+**Q: 为什么 `-m 1` 被降级为 `-m 2`？**  
+A: 物理内存 `<4GB` 时会触发保护降级，避免高并发下 OOM 卡死。
 
-**Q: 为什么我运行命令加了 `-m 1`，脚本却提示被降级了？**
+**Q: Vertex 连不上 qB，127.0.0.1 不行？**  
+A: Vertex 在容器内，`127.0.0.1` 指向容器自身。应使用 Docker 网桥网关（脚本完成页会输出）。
 
-**A:** 这是脚本的**内存防呆机制**生效了。极限模式会将系统的 TCP 发送/接收缓冲区推高至近乎变态的程度，如果你的服务器物理内存小于 4GB，瞬间的极速高并发会直接导致系统内核 OOM 崩溃。为了保护机器，脚本会自动介入，将内核参数降级到安全的均衡模式。
+**Q: `-a` 动态控制器依赖 PSI 吗？**  
+A: PSI 可用时会参与判定；不可用时自动回退为 MemAvailable-only，并写入一次性告警日志。
 
-**Q: Vertex 连不上 qBit？下载器地址填 127.0.0.1 报错？**
-
-**A:** Vertex 跑在 Docker 隔离环境里，`127.0.0.1` 指向的是容器内部。要连宿主机的 qBit，必须填 Docker 的网桥网关（通常是 `172.17.0.1`）。不必猜，**脚本安装完成后的高亮绿字提示中，已经为你计算并输出了准确的内网直连 IP**，直接照着填即可。
-
-**Q: Vertex 导入旧备份后，用之前的账号密码登不进去了？**
-
-**A:** 无论您的备份包嵌套了多少层外壳，或者配置文件是否存在奇怪的换行符，ASP 脚本在解压时都会启动内置的清洗引擎。它会自动将旧配置里的账号密码，**强制覆盖**为您当前执行安装命令时传入的 `-u` 和 `-p`。直接用刚才新设的密码登录即可！
-
-**Q: 为什么不加 `-c` 参数，qB 也能正常运行？**
-
-**A:** 脚本引入了聪明的**动态缓存计算逻辑**。如果你不加 `-c`，脚本会侦测你的系统物理内存，在极限模式下自动划拨 35% 作为高速缓存，在均衡模式下划拨 15%（最高 2GB），省去小白计算的烦恼。如果你加了 `-c`（如 `-c 4096`），脚本则会绝对服从你的指令，将缓存强制锁死在指定值。
-
-**Q: 打开 qBittorrent WebUI 提示 `Unauthorized` 错误？**
-
-**A:** 1. 局域网访问时，试着在浏览器地址后面加个斜杠绕过缓存（如 `http://IP:8080/`）。
-       2. 脚本默认已经关闭了 HostHeader 校验和 CSRF 保护，远程公网访问应该是直接畅通的。
-
-
----
-
-## 推荐方案 
-
-针对目前最新的 v2.3.x 及以上版本脚本，这里总结一下硬件搭配的推荐方案，如下表所示：
-
-| 硬件规格 | 推荐版本 & 模式 | 解析 |
-| :--- | :--- | :--- |
-| **千兆网 + 机械盘 (HDD)**(例如：OVH KS 系列) | `4` + `-m 2` | 利用 v4 的物理内存缓存机制，配合均衡模式 (`-m 2`) 的平滑写盘策略，将大量随机读写合并为顺序写入，有效避免 I/O 阻塞导致的红种或卡顿。 |
-| **2.5G/万兆网 + NVMe/SSD + 8~16G 内存**(例如：Netcup G9.5) | `4` + `-m 1` | 在 8~16G 内存区间，退回 v4.3.9 并开启极限模式 (`-m 1`)，脚本将分配 2 万级并发和 256MB 缓冲区，充分发挥 v4 物理缓存的爆发力，抢占首发优势显著。 |
-| **万兆网 (10G) + NVMe 固态 + ≥32G 内存**(例如：高配独服) | `5` + `-m 1` | 脚本检测到 32G+ 内存后自动解锁终极内核参数：**1GB TCP 缓冲区、80,000 并发连接、24 线程异步 I/O**。v5 的 Direct I/O 模式直接穿透内核缓存，将数据流高速写入 NVMe，最大化利用万兆带宽。 |
-
-在之前版本中，极限模式（`-m 1`）参数较为固定，例如直接设置 1GB TCP 缓冲区、32 个异步 I/O 线程和较高的并发限制，对于内存较小的机器容易导致 OOM（内存溢出）。但最新版脚本底层引入了**动态自适应计算引擎**，能够根据硬件资源自动调整参数。
-
-以常见的 Netcup G9.5（2.5G 带宽、320G SSD、8G 内存）为例，目前推荐使用 **qBittorrent 4.x + 极限模式 (-m 1)**：
-
-**Netcup G9.5（及类似配置 VPS）一键部署命令示例：**
-（注意：此处保留了 `-c 2048` 强制锁定 2GB 缓存，端口可根据需要修改）
+**Q: 动态控制器怎么查看状态与日志？**  
+A:
 ```bash
-wget -qO asp.sh https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh && bash asp.sh -u 用户名 -p 密码 -q 4 -m 1 -c 2048 -v -f -t -o
+systemctl status asp-qb-autotune.timer
+journalctl -t asp-qb-autotune -n 50
 ```
 
 ---
 
 ## 📜 协议与鸣谢
 
-本项目基于 [MIT License](LICENSE) 开源。
-内核极限调优思路参考了 [jerry048/Dedicated-Seedbox](https://github.com/jerry048/Dedicated-Seedbox) 和 [vivibudong/PT-Seedbox](https://github.com/vivibudong/PT-Seedbox) 的优秀设计，并进行了深度重构、环境防呆与场景化安全改造。您可以自由修改、分发，但请保留原作者署名。
+本项目基于 [MIT License](LICENSE) 开源。  
+调优思路参考了 [jerry048/Dedicated-Seedbox](https://github.com/jerry048/Dedicated-Seedbox) 与 [vivibudong/PT-Seedbox](https://github.com/vivibudong/PT-Seedbox) 的实践，并进行了场景化重构与安全护栏增强。
