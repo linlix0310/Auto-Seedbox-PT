@@ -2,7 +2,7 @@
  * Auto-Seedbox-PT (ASP) Screenshot 前端扩展
  * 由 Nginx 动态注入：/asp-screenshot.js
  */
-(function() {
+(function () {
   console.log("📸 [ASP] Screenshot 已加载");
 
   const SS_API = "/api/ss";
@@ -57,8 +57,7 @@
   }
 
   let lastRightClickedFile = "";
-
-  document.addEventListener("contextmenu", function(e) {
+  document.addEventListener("contextmenu", function (e) {
     const row = e.target.closest(".item");
     if (row) {
       const nameEl = row.querySelector(".name");
@@ -68,7 +67,7 @@
     }
   }, true);
 
-  document.addEventListener("click", function(e) {
+  document.addEventListener("click", function (e) {
     if (!e.target.closest(".asp-ss-btn-class") && !e.target.closest('.item[aria-selected="true"]')) {
       lastRightClickedFile = "";
     }
@@ -97,73 +96,74 @@
     const presetWs = [origW, 3840, 2560, 1920, 1280, 960, 720]
       .filter((v, i, a) => a.indexOf(v) === i)
       .filter((v) => v >= 320 && v <= 3840);
+
     const presetNs = [6, 8, 10, 12, 16];
 
     const html = `
       <style>
-        .ss-wrap{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;color:#111827;text-align:left}
+        .ss-form-wrap{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;text-align:left;color:#111827}
         .ss-head{margin-bottom:14px}
         .ss-title{font-size:16px;font-weight:700;margin-bottom:6px}
         .ss-sub{font-size:13px;color:#4b5563;line-height:1.6}
         .ss-sub code{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:2px 6px}
         .ss-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-        .ss-pill{font-size:12px;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px}
-        .ss-form{display:grid;grid-template-columns:140px 1fr;gap:12px 14px;align-items:start}
-        .ss-form label{font-size:13px;font-weight:600;color:#111827;padding-top:8px}
+        .ss-pill{font-size:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;color:#374151}
+        .ss-form{display:grid;grid-template-columns:140px 1fr;gap:12px 14px}
+        .ss-form label{font-size:13px;font-weight:600;padding-top:8px}
         .ss-control{display:flex;flex-direction:column;gap:8px}
-        .ss-form input[type="number"]{width:100%;padding:9px 10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#111827;outline:none}
-        .ss-form input[type="number"]:focus{border-color:#3085d6;box-shadow:0 0 0 2px rgba(48,133,214,.15)}
-        .ss-form input[type="range"]{width:100%;accent-color:#3085d6}
-        .ss-chiprow{display:flex;flex-wrap:wrap;gap:8px}
-        .ss-chip{cursor:pointer;user-select:none;padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;font-size:12px;color:#374151}
-        .ss-chip:hover{background:#f9fafb;border-color:#9ca3af}
+        .ss-form input[type='number']{width:100%;padding:9px 10px;border-radius:6px;border:1px solid #d1d5db;outline:none}
+        .ss-form input[type='number']:focus{border-color:#3085d6;box-shadow:0 0 0 2px rgba(48,133,214,.15)}
+        .ss-form input[type='range']{width:100%;accent-color:#3085d6}
+        .ss-chip-row{display:flex;gap:8px;flex-wrap:wrap}
+        .ss-chip{cursor:pointer;padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:12px;user-select:none}
+        .ss-chip:hover{background:#f9fafb}
         .ss-help{font-size:12px;color:#6b7280;line-height:1.6}
-        .ss-value{display:inline-block;padding:2px 8px;border-radius:4px;background:#f3f4f6;border:1px solid #e5e7eb;color:#111827}
+        .ss-val{display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;padding:2px 8px;color:#111827}
         @media (max-width:760px){.ss-form{grid-template-columns:1fr}}
       </style>
 
-      <div class="ss-wrap">
-        <div class="ss-head">
-          <div class="ss-title">截图参数设置</div>
-          <div class="ss-sub">文件：<code>${escapeHtml(fileName)}</code></div>
-          <div class="ss-meta">
-            <span class="ss-pill">源分辨率：${origW}${origH ? "x" + origH : ""}</span>
-            <span class="ss-pill">输出格式：JPG + ZIP</span>
-            <span class="ss-pill">临时目录：/tmp/asp_screens</span>
+      <div class='ss-form-wrap'>
+        <div class='ss-head'>
+          <div class='ss-title'>截图参数设置</div>
+          <div class='ss-sub'>文件：<code>${escapeHtml(fileName)}</code></div>
+          <div class='ss-meta'>
+            <span class='ss-pill'>源分辨率：${origW}${origH ? "x" + origH : ""}</span>
+            <span class='ss-pill'>输出格式：JPG + ZIP</span>
+            <span class='ss-pill'>临时目录：/tmp/asp_screens</span>
           </div>
         </div>
 
-        <div class="ss-form">
+        <div class='ss-form'>
           <label>截图数量</label>
-          <div class="ss-control">
-            <input id="ss_n" type="number" min="1" max="20" value="6" />
-            <div class="ss-chiprow" id="ss_n_chips">
-              ${presetNs.map((n) => `<span class="ss-chip" data-n="${n}">${n} 张</span>`).join("")}
+          <div class='ss-control'>
+            <input id='ss_n' type='number' min='1' max='20' value='6'/>
+            <div class='ss-chip-row' id='ss_n_chips'>
+              ${presetNs.map((n) => `<span class='ss-chip' data-n='${n}'>${n} 张</span>`).join("")}
             </div>
           </div>
 
           <label>宽度</label>
-          <div class="ss-control">
-            <input id="ss_w" type="number" min="320" max="3840" value="${origW}" />
-            <div class="ss-chiprow" id="ss_w_chips">
-              ${presetWs.map((w) => `<span class="ss-chip" data-w="${w}">${w}${w === origW ? "（原始）" : ""}</span>`).join("")}
+          <div class='ss-control'>
+            <input id='ss_w' type='number' min='320' max='3840' value='${origW}'/>
+            <div class='ss-chip-row' id='ss_w_chips'>
+              ${presetWs.map((w) => `<span class='ss-chip' data-w='${w}'>${w}${w === origW ? "（原始）" : ""}</span>`).join("")}
             </div>
           </div>
 
           <label>跳过片头（%）</label>
-          <div class="ss-control">
-            <input id="ss_head" type="range" min="0" max="20" value="5" />
-            <div class="ss-help">当前：<span class="ss-value"><span id="ss_head_v">5</span>%</span></div>
+          <div class='ss-control'>
+            <input id='ss_head' type='range' min='0' max='20' value='5'/>
+            <div class='ss-help'>当前：<span class='ss-val'><span id='ss_head_v'>5</span>%</span></div>
           </div>
 
           <label>跳过片尾（%）</label>
-          <div class="ss-control">
-            <input id="ss_tail" type="range" min="0" max="20" value="5" />
-            <div class="ss-help">当前：<span class="ss-value"><span id="ss_tail_v">5</span>%</span></div>
+          <div class='ss-control'>
+            <input id='ss_tail' type='range' min='0' max='20' value='5'/>
+            <div class='ss-help'>当前：<span class='ss-val'><span id='ss_tail_v'>5</span>%</span></div>
           </div>
 
           <label>说明</label>
-          <div class="ss-help">跳过片头/片尾可减少 OP/ED 或字幕影响；若需完整区间截图可设为 0。</div>
+          <div class='ss-help'>跳过片头/片尾可减少 OP/ED 或字幕影响；若需完整区间截图可设为 0。</div>
         </div>
       </div>
     `;
@@ -184,8 +184,9 @@
         const tail = document.getElementById("ss_tail");
         const hv = document.getElementById("ss_head_v");
         const tv = document.getElementById("ss_tail_v");
-        head.addEventListener("input", () => { hv.textContent = head.value; });
-        tail.addEventListener("input", () => { tv.textContent = tail.value; });
+
+        head.addEventListener("input", () => (hv.textContent = head.value));
+        tail.addEventListener("input", () => (tv.textContent = tail.value));
 
         const nInput = document.getElementById("ss_n");
         const wInput = document.getElementById("ss_w");
@@ -213,10 +214,7 @@
       }
     });
 
-    if (!result.isConfirmed) {
-      Swal.close();
-      return null;
-    }
+    if (!result.isConfirmed) return null;
     return result.value;
   }
 
@@ -238,7 +236,7 @@
         .then((r) => r.json().then((j) => ({ ok: r.ok, status: r.status, json: j })))
         .then(({ ok, status, json }) => {
           if (!ok || !json || !json.base || !Array.isArray(json.files) || json.files.length === 0) {
-            const msg = (json && json.error) ? json.error : `请求失败 (HTTP ${status})`;
+            const msg = json && json.error ? json.error : `请求失败 (HTTP ${status})`;
             throw new Error(msg);
           }
 
@@ -255,18 +253,13 @@
               .ss-top code{background:#2d2d2d;border:1px solid #444;border-radius:4px;padding:2px 6px;color:#fff}
               .ss-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
               .ss-meta span{background:#2a2a2a;border:1px solid #444;border-radius:4px;padding:3px 8px;font-size:12px}
-              .ss-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 12px}
-              .ss-btn{border:0;border-radius:4px;padding:8px 12px;font-size:13px;color:#fff;cursor:pointer}
-              .ss-btn-blue{background:#3085d6}
-              .ss-btn-green{background:#28a745}
-              .ss-btn:hover{filter:brightness(1.05)}
-              .ss-status{font-size:12px;color:#bdbdbd}
+              .ss-status{font-size:12px;color:#bdbdbd;margin-top:8px}
               .ss-grid-wrap{max-height:56vh;overflow-y:auto;padding-right:4px}
               .ss-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-              .ss-card{border:1px solid #3f3f3f;border-radius:6px;overflow:hidden;background:#252525}
-              .ss-bar{padding:7px 9px;display:flex;justify-content:space-between;align-items:center;font-size:12px;background:#2f2f2f;color:#cfcfcf}
-              .ss-idx{font-weight:700;color:#fff}
-              .ss-img{display:block;width:100%;max-height:220px;object-fit:cover;background:#111}
+              .ss-card{border:1px solid #3f3f3f;border-radius:6px;overflow:hidden;background:#fff}
+              .ss-bar{padding:7px 9px;display:flex;justify-content:space-between;align-items:center;font-size:12px;background:#f5f5f5;color:#444}
+              .ss-idx{font-weight:700;color:#111}
+              .ss-img{display:block;width:100%;max-height:220px;object-fit:cover;background:#fff}
               .ss-foot{margin-top:10px;padding:10px;border:1px solid #3f3f3f;border-radius:6px;background:#2a2a2a;font-size:12px;line-height:1.6}
               .ss-foot code{background:#222;border:1px solid #444;border-radius:4px;padding:2px 6px;color:#fff}
               .ss-foot a{color:#9cdcfe;text-decoration:none;word-break:break-all}
@@ -275,21 +268,16 @@
             </style>
           `;
 
-          html += `<div class="ss-panel">`;
-          html += `<div class="ss-top">文件：<code>${escapeHtml(fileName)}</code><div class="ss-meta"><span>${imgs.length} 张截图</span><span>宽度 ${opt.width}</span><span>片头/片尾 ${opt.head}% / ${opt.tail}%</span></div></div>`;
-          html += `<div class="ss-actions">`;
-          html += `<button type="button" class="ss-btn ss-btn-blue" id="ss_zip_btn">下载 ZIP</button>`;
-          html += `<button type="button" class="ss-btn ss-btn-green" id="ss_copy_btn">复制全部链接</button>`;
-          html += `<span class="ss-status" id="ss_status">操作按钮不会关闭弹窗，点击“关闭”才会退出。</span>`;
-          html += `</div>`;
-          html += `<div class="ss-grid-wrap"><div class="ss-grid">` + imgs.map((u, i) => `
-            <a href="${u}" target="_blank" style="text-decoration:none">
-              <div class="ss-card">
-                <div class="ss-bar"><span class="ss-idx">#${i + 1}</span><span>新标签打开</span></div>
-                <img class="ss-img" src="${u}" loading="lazy" />
+          html += `<div class='ss-panel'>`;
+          html += `<div class='ss-top'>文件：<code>${escapeHtml(fileName)}</code><div class='ss-meta'><span>${imgs.length} 张截图</span><span>宽度 ${opt.width}</span><span>片头/片尾 ${opt.head}% / ${opt.tail}%</span></div></div>`;
+          html += `<div class='ss-grid-wrap'><div class='ss-grid'>` + imgs.map((u, i) => `
+            <a href='${u}' target='_blank' style='text-decoration:none'>
+              <div class='ss-card'>
+                <div class='ss-bar'><span class='ss-idx'>#${i + 1}</span><span>新标签打开</span></div>
+                <img class='ss-img' src='${u}' loading='lazy' />
               </div>
             </a>`).join("") + `</div></div>`;
-          html += `<div class="ss-foot">ZIP 包：<code>${json.zip || "未生成"}</code><br/>${zipUrl ? `ZIP 地址：<a href="${zipUrl}" target="_blank">${zipUrl}</a>` : "未生成 ZIP，可使用“复制全部链接”获取每张截图地址。"}</div>`;
+          html += `<div class='ss-foot'>ZIP 包：<code>${json.zip || "未生成"}</code><br/>${zipUrl ? `ZIP 地址：<a href='${zipUrl}' target='_blank'>${zipUrl}</a>` : "未生成 ZIP，可使用“复制全部链接”获取每张截图地址。"}<div class='ss-status' id='ss_status'>操作按钮不会关闭弹窗，点击“关闭”才会退出。</div></div>`;
           html += `</div>`;
 
           Swal.fire({
@@ -303,36 +291,52 @@
             allowOutsideClick: false,
             allowEscapeKey: false,
             didOpen: () => {
-              const zipBtn = document.getElementById("ss_zip_btn");
-              const copyBtn = document.getElementById("ss_copy_btn");
+              const actions = Swal.getActions();
+              const closeBtn = Swal.getCancelButton();
               const status = document.getElementById("ss_status");
 
-              if (zipBtn) {
-                if (!zipUrl && !imgs[0]) {
-                  zipBtn.disabled = true;
-                  zipBtn.style.opacity = "0.6";
-                  zipBtn.style.cursor = "not-allowed";
-                }
-                zipBtn.addEventListener("click", () => {
-                  if (zipUrl) {
-                    window.open(zipUrl, "_blank");
-                    if (status) status.textContent = "已在新标签页打开 ZIP 下载链接。";
-                  } else if (imgs[0]) {
-                    window.open(imgs[0], "_blank");
-                    if (status) status.textContent = "未生成 ZIP，已打开第一张截图。";
-                  }
-                });
+              const zipBtn = document.createElement("button");
+              zipBtn.type = "button";
+              zipBtn.className = "swal2-styled";
+              zipBtn.textContent = "下载 ZIP";
+              zipBtn.style.background = "#3085d6";
+              zipBtn.style.marginRight = "8px";
+
+              const copyBtn = document.createElement("button");
+              copyBtn.type = "button";
+              copyBtn.className = "swal2-styled";
+              copyBtn.textContent = "复制全部链接";
+              copyBtn.style.background = "#28a745";
+              copyBtn.style.marginRight = "8px";
+
+              if (actions && closeBtn) {
+                actions.insertBefore(copyBtn, closeBtn);
+                actions.insertBefore(zipBtn, copyBtn);
               }
 
-              if (copyBtn) {
-                copyBtn.addEventListener("click", () => {
-                  copyText(allLinksText).then(() => {
-                    if (status) status.textContent = `已复制 ${imgs.length} 条截图下载链接。`;
-                  }).catch(() => {
-                    if (status) status.textContent = "复制失败，请手动复制链接。";
-                  });
-                });
+              if (!zipUrl && !imgs[0]) {
+                zipBtn.disabled = true;
+                zipBtn.style.opacity = "0.6";
+                zipBtn.style.cursor = "not-allowed";
               }
+
+              zipBtn.addEventListener("click", () => {
+                if (zipUrl) {
+                  window.open(zipUrl, "_blank");
+                  if (status) status.textContent = "已在新标签页打开 ZIP 下载链接。";
+                } else if (imgs[0]) {
+                  window.open(imgs[0], "_blank");
+                  if (status) status.textContent = "未生成 ZIP，已打开第一张截图。";
+                }
+              });
+
+              copyBtn.addEventListener("click", () => {
+                copyText(allLinksText).then(() => {
+                  if (status) status.textContent = `已复制 ${imgs.length} 条截图下载链接。`;
+                }).catch(() => {
+                  if (status) status.textContent = "复制失败，请手动复制链接。";
+                });
+              });
             }
           });
         })
@@ -347,9 +351,8 @@
 
     observerTimer = setTimeout(() => {
       let targetFile = "";
-      if (lastRightClickedFile) {
-        targetFile = lastRightClickedFile;
-      } else {
+      if (lastRightClickedFile) targetFile = lastRightClickedFile;
+      else {
         const selectedRows = document.querySelectorAll('.item[aria-selected="true"], .item.selected');
         if (selectedRows.length === 1) {
           const nameEl = selectedRows[0].querySelector(".name");
@@ -359,7 +362,6 @@
 
       const ok = isMedia(targetFile);
       const menus = new Set();
-
       document.querySelectorAll('button[aria-label="Info"]').forEach((btn) => {
         if (btn.parentElement) menus.add(btn.parentElement);
       });
@@ -374,7 +376,7 @@
             btn.setAttribute("aria-label", "Screenshot");
             btn.innerHTML = '<i class="material-icons">photo_camera</i><span>Screenshot</span>';
 
-            btn.onclick = function(ev) {
+            btn.onclick = function (ev) {
               ev.preventDefault();
               ev.stopPropagation();
               document.body.click();
@@ -382,9 +384,8 @@
             };
 
             const miBtn = menu.querySelector(".asp-mi-btn-class");
-            if (miBtn) {
-              miBtn.insertAdjacentElement("afterend", btn);
-            } else {
+            if (miBtn) miBtn.insertAdjacentElement("afterend", btn);
+            else {
               const infoBtn = menu.querySelector('button[aria-label="Info"]');
               if (infoBtn) infoBtn.insertAdjacentElement("afterend", btn);
               else menu.appendChild(btn);

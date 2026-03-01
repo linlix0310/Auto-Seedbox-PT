@@ -325,11 +325,12 @@ uninstall() {
     local VX_PURGE="Y"
     echo -e "${YELLOW}=================================================${NC}"
     if [[ "$vx_detected" == "true" ]]; then
-        log_warn "Detected Vertex container/data traces. Deletion is irreversible."
+        log_warn "检测到 Vertex 容器或数据痕迹，删除后不可恢复。"
     else
-        log_warn "No obvious Vertex traces detected, but you can still choose to run Vertex cleanup."
+        log_warn "未检测到明显 Vertex 痕迹，但你仍可手动选择执行 Vertex 清理。"
     fi
-    read -p "Delete Vertex (container/image/data)? [Y/n]: " VX_PURGE < /dev/tty
+    echo -e "  ${CYAN}▶ Vertex 删除确认${NC}"
+    read -p "是否删除 Vertex（容器/镜像/数据）？[Y/n]: " VX_PURGE < /dev/tty
     VX_PURGE=${VX_PURGE:-Y}
     echo -e "${YELLOW}=================================================${NC}"
 
