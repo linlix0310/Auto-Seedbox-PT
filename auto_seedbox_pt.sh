@@ -2215,7 +2215,8 @@ echo -e "     └─ 内部直连 qBit : ${YELLOW}$VX_GW:$QB_WEB_PORT${NC}"
 fi
 if [[ "$DO_FB" == "true" ]]; then
 echo -e "  📁 FileBrowser      : ${GREEN}http://$PUB_IP:$FB_PORT${NC}"
-echo -e "     └─ MediaInfo     : ${YELLOW}由本机 Nginx 代理分发${NC}"
+echo -e "     ├─ MediaInfo     : ${YELLOW}由本机 Nginx 代理分发${NC}"
+echo -e "     └─ Screenshot    : ${YELLOW}由本机 Nginx 代理分发${NC}"
 fi
 
 echo ""
