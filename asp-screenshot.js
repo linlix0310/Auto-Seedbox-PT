@@ -201,8 +201,8 @@
             cancelButtonText: "取消",
             confirmButtonColor: "#3b82f6", // 明快的蓝色按钮
             cancelButtonColor: "#9ca3af",  // 柔和的灰色取消按钮
-            allowOutsideClick: false,
-            allowEscapeKey: false,
+            allowOutsideClick: true,
+            allowEscapeKey: true,
             didOpen: () => {
                 const head = document.getElementById("ss_head");
                 const tail = document.getElementById("ss_tail");
