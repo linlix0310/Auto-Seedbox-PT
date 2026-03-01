@@ -373,11 +373,11 @@ uninstall() {
     "
 
     if command -v docker >/dev/null; then
-        execute_with_spinner "清理 Docker 镜像与容器残留" sh -c "
-            if [[ "${VX_PURGE:-Y}" =~ ^[Yy]$ ]]; then docker rm -f vertex 2>/dev/null || true; fi
-            if [[ "${FB_PURGE:-Y}" =~ ^[Yy]$ ]]; then docker rm -f filebrowser 2>/dev/null || true; fi
-            if [[ "${VX_PURGE:-Y}" =~ ^[Yy]$ ]]; then docker rmi lswl/vertex:stable 2>/dev/null || true; fi
-            if [[ "${FB_PURGE:-Y}" =~ ^[Yy]$ ]]; then docker rmi filebrowser/filebrowser:latest 2>/dev/null || true; fi
+        execute_with_spinner "清理 Docker 镜像与容器残留" bash -c "
+            if [[ \"${VX_PURGE:-Y}\" =~ ^[Yy]$ ]]; then docker rm -f vertex 2>/dev/null || true; fi
+            if [[ \"${FB_PURGE:-Y}\" =~ ^[Yy]$ ]]; then docker rm -f filebrowser 2>/dev/null || true; fi
+            if [[ \"${VX_PURGE:-Y}\" =~ ^[Yy]$ ]]; then docker rmi lswl/vertex:stable 2>/dev/null || true; fi
+            if [[ \"${FB_PURGE:-Y}\" =~ ^[Yy]$ ]]; then docker rmi filebrowser/filebrowser:latest 2>/dev/null || true; fi
             docker network prune -f >/dev/null 2>&1 || true
         "
     fi

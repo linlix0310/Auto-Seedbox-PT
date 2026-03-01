@@ -72,8 +72,8 @@
         }
     }, true);
 
-    // ==========================================
-    // 弹窗1：参数设置面板 (深色极客UI)
+   // ==========================================
+    // 弹窗1：参数设置面板 (现代极简浅色版)
     // ==========================================
     async function promptSettings(fileName) {
         if (typeof Swal === "undefined") {
@@ -102,64 +102,91 @@
 
         const html = `
             <style>
-                .ss-form-wrap { background:#1e1e1e; border-radius:8px; padding:15px; text-align:left; color:#d4d4d4; font-family: 'Consolas', 'Courier New', monospace; font-size:13px; }
-                .ss-head { margin-bottom:14px; border-bottom: 1px dashed #333; padding-bottom: 12px; }
-                .ss-title { font-size:16px; font-weight:bold; color:#569cd6; margin-bottom:8px; }
-                .ss-sub { font-size:13px; color:#cecece; line-height:1.6; word-wrap: break-word; }
-                .ss-sub code { background:#2d2d2d; border:1px solid #444; border-radius:4px; padding:2px 6px; color:#ce9178; }
-                .ss-meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-                .ss-pill { font-size:12px; background:#252526; border:1px solid #3c3c3c; border-radius:6px; padding:4px 8px; color:#4ec9b0; }
-                .ss-form { display:grid; grid-template-columns:140px 1fr; gap:14px 14px; margin-top: 10px; }
-                .ss-form label { font-size:13px; font-weight:bold; padding-top:8px; color:#9cdcfe; }
-                .ss-control { display:flex; flex-direction:column; gap:8px; }
-                .ss-form input[type='number'] { width:100%; padding:8px 10px; border-radius:6px; border:1px solid #444; background:#252526; color:#d4d4d4; outline:none; font-family: 'Consolas', monospace; color-scheme: dark; }
-                .ss-form input[type='number']:focus { border-color:#3085d6; }
-                .ss-form input[type='range'] { width:100%; accent-color:#3085d6; }
-                .ss-chip-row { display:flex; gap:8px; flex-wrap:wrap; }
-                .ss-chip { cursor:pointer; padding:4px 10px; border-radius:6px; border:1px solid #444; background:#252526; color:#d4d4d4; font-size:12px; user-select:none; transition: 0.2s; }
-                .ss-chip:hover { background:#37373d; border-color:#555; }
-                .ss-help { font-size:12px; color:#858585; line-height:1.6; }
-                .ss-val { display:inline-block; background:#2d2d2d; border:1px solid #444; border-radius:4px; padding:2px 8px; color:#dcdcaa; }
-                @media (max-width:760px) { .ss-form { grid-template-columns:1fr; } }
+                /* 全局与排版 (浅色) */
+                .ss-wrap { text-align: left; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #1f2937; }
+                .ss-head { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px dashed #e5e7eb; }
+                .ss-title { font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+                .ss-sub { font-size: 13px; color: #6b7280; margin-bottom: 12px; display: flex; align-items: center; }
+                .ss-sub code { font-family: 'Consolas', monospace; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 2px 6px; color: #ec4899; margin-left: 8px; word-break: break-all; }
+                
+                /* 彩色信息徽章 */
+                .ss-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+                .ss-pill { font-size: 12px; font-family: 'Consolas', monospace; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 4px 10px; color: #1d4ed8; display: inline-flex; align-items: center; }
+                .ss-pill.fmt { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; } /* 清爽绿 */
+
+                /* 表单网格 */
+                .ss-form { display: grid; grid-template-columns: 130px 1fr; gap: 20px 16px; align-items: start; }
+                .ss-form label { font-size: 14px; font-weight: 600; color: #374151; padding-top: 6px; }
+                .ss-control { display: flex; flex-direction: column; gap: 10px; }
+
+                /* 现代输入框 */
+                .ss-input-box { display: flex; align-items: center; position: relative; }
+                .ss-form input[type='number'] { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; color: #111827; outline: none; font-family: 'Consolas', monospace; font-size: 14px; transition: all 0.2s ease; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); }
+                .ss-form input[type='number']:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15), inset 0 1px 2px rgba(0,0,0,0.02); }
+                
+                /* 药丸快捷标签 (悬浮变色) */
+                .ss-chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+                .ss-chip { cursor: pointer; padding: 5px 12px; border-radius: 20px; border: 1px solid #d1d5db; background: #fff; color: #4b5563; font-size: 12px; font-family: 'Consolas', monospace; user-select: none; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+                .ss-chip:hover { border-color: #9ca3af; background: #f9fafb; }
+                .ss-chip.active { background: #eff6ff; border-color: #60a5fa; color: #1d4ed8; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+                /* 浅色精致滑动条 */
+                .ss-range-wrap { display: flex; align-items: center; gap: 12px; }
+                .ss-form input[type='range'] { -webkit-appearance: none; width: 100%; background: transparent; height: 24px; margin: 0; outline: none; }
+                .ss-form input[type='range']::-webkit-slider-runnable-track { width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; }
+                .ss-form input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #3b82f6; cursor: pointer; margin-top: -5px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s; }
+                .ss-form input[type='range']::-webkit-slider-thumb:hover { transform: scale(1.15); background: #2563eb; }
+                
+                /* 动态数值显示 */
+                .ss-val { display: inline-flex; justify-content: center; align-items: center; min-width: 44px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; padding: 4px 6px; color: #374151; font-family: 'Consolas', monospace; font-size: 12px; font-weight: bold; }
+
+                @media (max-width:760px) { .ss-form { grid-template-columns: 1fr; gap: 12px; } }
             </style>
 
-            <div class='ss-form-wrap'>
+            <div class='ss-wrap'>
                 <div class='ss-head'>
-                    <div class='ss-title'>截图参数设置</div>
-                    <div class='ss-sub'>文件：<code>${escapeHtml(fileName)}</code></div>
+                    <div class='ss-title'>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        截图参数配置
+                    </div>
+                    <div class='ss-sub'>目标文件 <code>${escapeHtml(fileName)}</code></div>
                     <div class='ss-meta'>
-                        <span class='ss-pill'>源分辨率: ${origW}${origH ? "x" + origH : ""}</span>
-                        <span class='ss-pill'>输出: JPG + ZIP</span>
+                        <span class='ss-pill'>⚡ ${origW}${origH ? "x" + origH : "p"} 源解析度</span>
+                        <span class='ss-pill fmt'>📦 JPG + ZIP 归档</span>
                     </div>
                 </div>
 
                 <div class='ss-form'>
                     <label>截图数量 (张)</label>
                     <div class='ss-control'>
-                        <input id='ss_n' type='number' min='1' max='20' value='6'/>
+                        <div class='ss-input-box'><input id='ss_n' type='number' min='1' max='20' value='6'/></div>
                         <div class='ss-chip-row' id='ss_n_chips'>
-                            ${presetNs.map((n) => `<span class='ss-chip' data-n='${n}'>${n} 张</span>`).join("")}
+                            ${presetNs.map((n) => `<span class='ss-chip' data-n='${n}'>${n}</span>`).join("")}
                         </div>
                     </div>
 
-                    <label>图像宽度 (px)</label>
+                    <label>横向宽度 (px)</label>
                     <div class='ss-control'>
-                        <input id='ss_w' type='number' min='320' max='3840' value='${origW}'/>
+                        <div class='ss-input-box'><input id='ss_w' type='number' min='320' max='3840' value='${origW}'/></div>
                         <div class='ss-chip-row' id='ss_w_chips'>
                             ${presetWs.map((w) => `<span class='ss-chip' data-w='${w}'>${w}${w === origW ? "(原)" : ""}</span>`).join("")}
                         </div>
                     </div>
 
-                    <label>跳过片头 (%)</label>
+                    <label>智能跳过片头</label>
                     <div class='ss-control'>
-                        <input id='ss_head' type='range' min='0' max='20' value='5'/>
-                        <div class='ss-help'>当前：<span class='ss-val'><span id='ss_head_v'>5</span>%</span></div>
+                        <div class='ss-range-wrap'>
+                            <input id='ss_head' type='range' min='0' max='20' value='5'/>
+                            <div class='ss-val'><span id='ss_head_v'>5</span>%</div>
+                        </div>
                     </div>
 
-                    <label>跳过片尾 (%)</label>
+                    <label>智能跳过片尾</label>
                     <div class='ss-control'>
-                        <input id='ss_tail' type='range' min='0' max='20' value='5'/>
-                        <div class='ss-help'>当前：<span class='ss-val'><span id='ss_tail_v'>5</span>%</span></div>
+                        <div class='ss-range-wrap'>
+                            <input id='ss_tail' type='range' min='0' max='20' value='5'/>
+                            <div class='ss-val'><span id='ss_tail_v'>5</span>%</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -167,12 +194,13 @@
 
         const result = await Swal.fire({
             html: html,
-            width: '750px',
+            width: '680px', 
+            background: '#ffffff', // 回归干净的纯白背景
             showCancelButton: true,
-            confirmButtonText: "🚀 开始截图",
+            confirmButtonText: "🚀 开始执行截图",
             cancelButtonText: "取消",
-            confirmButtonColor: "#3085d6",
-            cancelButtonColor: "#555",
+            confirmButtonColor: "#3b82f6", // 明快的蓝色按钮
+            cancelButtonColor: "#9ca3af",  // 柔和的灰色取消按钮
             allowOutsideClick: false,
             allowEscapeKey: false,
             didOpen: () => {
@@ -187,15 +215,24 @@
                 const nInput = document.getElementById("ss_n");
                 const wInput = document.getElementById("ss_w");
 
-                document.getElementById("ss_n_chips").addEventListener("click", (e) => {
-                    const t = e.target.closest(".ss-chip");
-                    if (t) nInput.value = t.getAttribute("data-n");
-                });
+                // 点击标签高亮并同步 Input
+                const bindChips = (containerId, inputEl, dataAttr) => {
+                    const container = document.getElementById(containerId);
+                    container.addEventListener("click", (e) => {
+                        const t = e.target.closest(".ss-chip");
+                        if (!t) return;
+                        container.querySelectorAll('.ss-chip').forEach(c => c.classList.remove('active'));
+                        t.classList.add('active');
+                        inputEl.value = t.getAttribute(dataAttr);
+                    });
+                };
 
-                document.getElementById("ss_w_chips").addEventListener("click", (e) => {
-                    const t = e.target.closest(".ss-chip");
-                    if (t) wInput.value = t.getAttribute("data-w");
-                });
+                bindChips("ss_n_chips", nInput, "data-n");
+                bindChips("ss_w_chips", wInput, "data-w");
+                
+                // 默认点亮当前值的 chip
+                document.querySelector(`.ss-chip[data-n="6"]`)?.classList.add('active');
+                document.querySelector(`.ss-chip[data-w="${origW}"]`)?.classList.add('active');
             },
             preConfirm: () => {
                 return {
