@@ -329,7 +329,6 @@ uninstall() {
     else
         log_warn "未检测到明显 Vertex 痕迹，但你仍可手动选择执行 Vertex 清理。"
     fi
-    echo -e "  ${CYAN}▶ Vertex 删除确认${NC}"
     read -p "是否删除 Vertex（容器/镜像/数据）？[Y/n]: " VX_PURGE < /dev/tty
     VX_PURGE=${VX_PURGE:-Y}
     echo -e "${YELLOW}=================================================${NC}"
@@ -1996,7 +1995,7 @@ echo -e "${CYAN}       / _ | / __/ |/ _ \\ ${NC}"
 echo -e "${CYAN}      / __ |_\\ \\  / ___/ ${NC}"
 echo -e "${CYAN}     /_/ |_/___/ /_/     ${NC}"
 echo -e "${BLUE}================================================================${NC}"
-echo -e "${PURPLE}     ✦ Auto-Seedbox-PT (ASP) 极限部署引擎 v3.5.2 ✦${NC}"
+echo -e "${PURPLE}     ✦ Auto-Seedbox-PT (ASP) 极限部署引擎 v3.5.5 ✦${NC}"
 echo -e "${PURPLE}     ✦               作者：Supcutie              ✦${NC}"
 echo -e "${GREEN}    🚀 一键部署 qBittorrent + Vertex + FileBrowser 刷流引擎${NC}"
 echo -e "${YELLOW}   💡 GitHub：https://github.com/yimouleng/Auto-Seedbox-PT ${NC}"

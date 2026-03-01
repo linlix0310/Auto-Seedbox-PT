@@ -316,8 +316,8 @@
                         title: "截图已生成",
                         html: html,
                         width: "850px",
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
+                        allowOutsideClick: true,
+                        allowEscapeKey: true,
                         showCancelButton: true,
                         showDenyButton: !!zipUrl, // 如果有 ZIP 才显示下载按钮
                         confirmButtonText: "📋 复制全部链接",
