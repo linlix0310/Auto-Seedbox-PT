@@ -1655,7 +1655,10 @@ def cleanup_old(max_age_sec=48*3600, max_dirs=200):
     except Exception:
         pass
 
-def ffprobe_duration(path):
+def ffprobe_meta(path):
+    """Return dict: width,height,duration (may be None)"""
+    meta = {"width": None, "height": None, "duration": None}
+    # duration
     try:
         r = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -1663,14 +1666,28 @@ def ffprobe_duration(path):
             capture_output=True, text=True, timeout=12
         )
         s = (r.stdout or "").strip()
-        if not s:
-            return None
-        return float(s)
+        if s:
+            meta["duration"] = float(s)
     except Exception:
-        return None
+        pass
+    # width/height from first video stream
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height",
+             "-of", "json", path],
+            capture_output=True, text=True, timeout=12
+        )
+        j = json.loads(r.stdout or "{}")
+        streams = j.get("streams") or []
+        if streams:
+            meta["width"] = int(streams[0].get("width")) if streams[0].get("width") else None
+            meta["height"] = int(streams[0].get("height")) if streams[0].get("height") else None
+    except Exception:
+        pass
+    return meta
 
 def make_timestamps(dur, n, head_pct, tail_pct):
-    # head_pct/tail_pct: 0..49 (percent)
     if not dur or dur <= 0 or n <= 0:
         return [1.0] * n
     if n == 1:
@@ -1724,12 +1741,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 return default
 
+        probe = (qs.get("probe", ["0"])[0] or "0").strip()  # 1 => probe only
+
+        full = safe_join(BASE_DIR, rel)
+        if not full or not os.path.isfile(full):
+            self._send(400, {"error": "非法路径或文件不存在"})
+            return
+
+        if probe in ("1", "true", "yes"):
+            meta = ffprobe_meta(full)
+            self._send(200, {"meta": meta})
+            return
+
         n = geti("n", 6)
         width = geti("width", 1280)
-        head = geti("head", 5)     # percent
-        tail = geti("tail", 5)     # percent
+        head = geti("head", 5)
+        tail = geti("tail", 5)
         fmt = (qs.get("fmt", ["jpg"])[0] or "jpg").lower()
-        zip_on = (qs.get("zip", ["1"])[0] or "1").strip()  # default on
+        zip_on = (qs.get("zip", ["1"])[0] or "1").strip()
 
         n = max(1, min(n, 20))
         width = max(320, min(width, 3840))
@@ -1739,11 +1768,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             fmt = "jpg"
         make_zip_on = zip_on not in ("0", "false", "no")
 
-        full = safe_join(BASE_DIR, rel)
-        if not full or not os.path.isfile(full):
-            self._send(400, {"error": "非法路径或文件不存在"})
-            return
-
         os.makedirs(OUT_ROOT, exist_ok=True)
         cleanup_old()
 
@@ -1751,7 +1775,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         out_dir = os.path.join(OUT_ROOT, token)
         os.makedirs(out_dir, exist_ok=True)
 
-        dur = ffprobe_duration(full)
+        meta = ffprobe_meta(full)
+        dur = meta.get("duration")
         ts = make_timestamps(dur, n, head, tail)
 
         files = []
@@ -1781,13 +1806,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send(500, {"error": "截图失败：ffmpeg 执行失败或文件不支持"})
             return
 
-        zip_file = None
-        if make_zip_on:
-            zip_file = make_zip(out_dir, files)
+        zip_file = make_zip(out_dir, files) if make_zip_on else None
 
-        # Nginx exposes /__asp_ss__/ -> /tmp/asp_screens/
-        payload = {"base": f"/__asp_ss__/{token}/", "files": files, "zip": zip_file,
-                   "params": {"n": n, "width": width, "head": head, "tail": tail, "fmt": fmt}}
+        payload = {
+            "base": f"/__asp_ss__/{token}/",
+            "files": files,
+            "zip": zip_file,
+            "params": {"n": n, "width": width, "head": head, "tail": tail, "fmt": fmt},
+            "meta": meta
+        }
         self._send(200, payload)
 
 socketserver.TCPServer.allow_reuse_address = True

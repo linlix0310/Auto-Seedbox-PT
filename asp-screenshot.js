@@ -1,14 +1,12 @@
 /**
  * Auto-Seedbox-PT (ASP) Screenshot 前端扩展
  * 由 Nginx 动态注入：/asp-screenshot.js
- * 依赖：SweetAlert2（会加载 /sweetalert2.all.min.js）
  */
 (function() {
-  console.log("📸 [ASP] Screenshot v1.2 已加载！");
+  console.log("📸 [ASP] Screenshot v1.3 已加载！");
 
   const SS_API = "/api/ss";
 
-  // 动态引入 SweetAlert2（和 MediaInfo 一致）
   const script = document.createElement('script');
   script.src = "/sweetalert2.all.min.js";
   document.head.appendChild(script);
@@ -18,49 +16,65 @@
     return decodeURIComponent(path) || '/';
   }
 
-  const copyText = (text) => {
-    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
-    let ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.focus(); ta.select();
-    return new Promise((res, rej) => {
-      document.execCommand('copy') ? res() : rej();
-      ta.remove();
-    });
-  };
-
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   }
 
   let lastRightClickedFile = "";
-
   document.addEventListener('contextmenu', function(e) {
     let row = e.target.closest('.item');
     if (row) {
       let nameEl = row.querySelector('.name');
       if (nameEl) lastRightClickedFile = nameEl.innerText.trim();
-    } else {
-      lastRightClickedFile = "";
-    }
+    } else lastRightClickedFile = "";
   }, true);
 
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('.asp-ss-btn-class') && !e.target.closest('.item[aria-selected="true"]')) {
-      lastRightClickedFile = "";
-    }
+    if (!e.target.closest('.asp-ss-btn-class') && !e.target.closest('.item[aria-selected="true"]')) lastRightClickedFile = "";
   }, true);
 
   const isMedia = (file) => file && file.match(/\.(mp4|mkv|avi|ts|m2ts|mov|webm|mpg|mpeg|wmv|flv|vob|iso)$/i);
+
+  async function probeVideo(fullPath) {
+    try {
+      const r = await fetch(`${SS_API}?file=${encodeURIComponent(fullPath)}&probe=1`, { cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j && j.meta) return j.meta;
+    } catch (e) {}
+    return { width: null, height: null, duration: null };
+  }
+
+  function clamp(v, lo, hi, fallback) {
+    v = parseInt(v, 10);
+    if (!Number.isFinite(v)) return fallback;
+    return Math.max(lo, Math.min(hi, v));
+  }
 
   async function promptSettings(fileName) {
     if (typeof Swal === 'undefined') {
       alert('UI组件正在加载，请稍后再试...');
       return null;
     }
+
+    const fullPath = (getCurrentDir() + '/' + fileName).replace(/\/\//g, '/');
+
+    // Probe first (so default width = original width)
+    Swal.fire({
+      title: "读取视频信息...",
+      html: "正在探测原始分辨率用于默认宽度",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    const meta = await probeVideo(fullPath);
+    const origW = clamp(meta.width, 320, 3840, 1280);
+    const origH = meta.height ? clamp(meta.height, 240, 2160, null) : null;
+
+    const presetWs = [origW, 3840, 2560, 1920, 1280, 960, 720]
+      .filter((v, i, a) => a.indexOf(v) === i) // unique
+      .filter(v => v >= 320 && v <= 3840);
+
+    const presetNs = [6, 8, 10, 12, 16];
 
     const html = `
       <style>
@@ -69,20 +83,33 @@
         .ss-form input[type="number"]{width:100%;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.22);color:#fff;outline:none}
         .ss-form input[type="range"]{width:100%}
         .ss-help{grid-column:1/-1;opacity:.7;font-size:12px;line-height:1.5}
+        .ss-chiprow{display:flex;flex-wrap:wrap;gap:8px}
+        .ss-chip{cursor:pointer;user-select:none;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.18);font-size:12px;opacity:.92}
+        .ss-chip:hover{background:rgba(0,0,0,.28)}
         .ss-badge{display:inline-block;padding:2px 8px;border:1px solid rgba(255,255,255,.14);border-radius:999px;font-size:12px;opacity:.9}
       </style>
 
       <div style="text-align:left;opacity:.9;margin-bottom:10px">
         文件：<code>${escapeHtml(fileName)}</code>
-        <div class="ss-help">默认会跳过片头/片尾（百分比），并输出到 <code>/tmp/asp_screens/</code>。</div>
+        <div class="ss-help">默认宽度 = 原始宽度 ${origW}${origH ? "×"+origH : ""}；输出到 <code>/tmp/asp_screens/</code></div>
       </div>
 
       <div class="ss-form">
         <label>截图数量</label>
-        <input id="ss_n" type="number" min="1" max="20" value="6"/>
+        <div>
+          <input id="ss_n" type="number" min="1" max="20" value="6"/>
+          <div class="ss-help ss-chiprow" id="ss_n_chips">
+            ${presetNs.map(n => `<span class="ss-chip" data-n="${n}">${n} 张</span>`).join("")}
+          </div>
+        </div>
 
         <label>宽度</label>
-        <input id="ss_w" type="number" min="320" max="3840" value="1280"/>
+        <div>
+          <input id="ss_w" type="number" min="320" max="3840" value="${origW}"/>
+          <div class="ss-help ss-chiprow" id="ss_w_chips">
+            ${presetWs.map(w => `<span class="ss-chip" data-w="${w}">${w} (${w === origW ? "原始" : ""})</span>`).join("")}
+          </div>
+        </div>
 
         <label>跳过片头(%)</label>
         <div>
@@ -96,16 +123,14 @@
           <div class="ss-help">当前：<span class="ss-badge"><span id="ss_tail_v">5</span>%</span></div>
         </div>
 
-        <div class="ss-help">
-          说明：跳过百分比用于避开 OP/ED/片尾字幕；如果你希望更“随机”，可把片头片尾都调小。
-        </div>
+        <div class="ss-help">说明：百分比用于避开 OP/ED/片尾字幕；需要更完整内容可调为 0。</div>
       </div>
     `;
 
     const result = await Swal.fire({
       title: "Screenshot 设置",
       html,
-      width: 720,
+      width: 760,
       showCancelButton: true,
       confirmButtonText: "开始截图",
       cancelButtonText: "取消",
@@ -116,26 +141,31 @@
         const tv = document.getElementById("ss_tail_v");
         head.addEventListener("input", ()=> hv.textContent = head.value);
         tail.addEventListener("input", ()=> tv.textContent = tail.value);
+
+        // chips
+        const nInput = document.getElementById("ss_n");
+        const wInput = document.getElementById("ss_w");
+
+        document.getElementById("ss_n_chips").addEventListener("click", (e) => {
+          const t = e.target.closest(".ss-chip");
+          if (!t) return;
+          const n = t.getAttribute("data-n");
+          if (n) nInput.value = n;
+        });
+
+        document.getElementById("ss_w_chips").addEventListener("click", (e) => {
+          const t = e.target.closest(".ss-chip");
+          if (!t) return;
+          const w = t.getAttribute("data-w");
+          if (w) wInput.value = w;
+        });
       },
       preConfirm: () => {
-        const n = parseInt(document.getElementById("ss_n").value || "6", 10);
-        const w = parseInt(document.getElementById("ss_w").value || "1280", 10);
-        const head = parseInt(document.getElementById("ss_head").value || "5", 10);
-        const tail = parseInt(document.getElementById("ss_tail").value || "5", 10);
-
-        if (!Number.isFinite(n) || n < 1 || n > 20) {
-          Swal.showValidationMessage("截图数量必须在 1-20 之间");
-          return false;
-        }
-        if (!Number.isFinite(w) || w < 320 || w > 3840) {
-          Swal.showValidationMessage("宽度必须在 320-3840 之间");
-          return false;
-        }
-        if (!Number.isFinite(head) || head < 0 || head > 20 || !Number.isFinite(tail) || tail < 0 || tail > 20) {
-          Swal.showValidationMessage("片头/片尾百分比必须在 0-20 之间");
-          return false;
-        }
-        return { n, width: w, head, tail };
+        const n = clamp(document.getElementById("ss_n").value, 1, 20, 6);
+        const w = clamp(document.getElementById("ss_w").value, 320, 3840, origW);
+        const head = clamp(document.getElementById("ss_head").value, 0, 20, 5);
+        const tail = clamp(document.getElementById("ss_tail").value, 0, 20, 5);
+        return { n, width: w, head, tail, fullPath, meta };
       }
     });
 
@@ -147,8 +177,6 @@
     promptSettings(fileName).then((opt) => {
       if (!opt) return;
 
-      const fullPath = (getCurrentDir() + '/' + fileName).replace(/\/\//g, '/');
-
       Swal.fire({
         title: '生成截图中...',
         html: `数量 <b>${opt.n}</b> / 宽度 <b>${opt.width}</b> / 跳过片头 <b>${opt.head}%</b> / 片尾 <b>${opt.tail}%</b>`,
@@ -156,7 +184,7 @@
         didOpen: () => Swal.showLoading()
       });
 
-      const url = `${SS_API}?file=${encodeURIComponent(fullPath)}&n=${opt.n}&width=${opt.width}&head=${opt.head}&tail=${opt.tail}&fmt=jpg&zip=1`;
+      const url = `${SS_API}?file=${encodeURIComponent(opt.fullPath)}&n=${opt.n}&width=${opt.width}&head=${opt.head}&tail=${opt.tail}&fmt=jpg&zip=1`;
 
       fetch(url, { cache: 'no-store' })
         .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j })))
@@ -166,11 +194,9 @@
             throw new Error(msg);
           }
 
-          const base = json.base; // /__asp_ss__/token/
+          const base = json.base;
           const imgs = json.files.map(f => `${base}${f}`);
-          const zipUrl = (json.zip) ? `${base}${json.zip}` : null;
-
-          const listText = imgs.map(u => location.origin + u).join("\n");
+          const zipUrl = json.zip ? `${base}${json.zip}` : null;
 
           let html = `<style>
             .ss-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}
@@ -194,7 +220,7 @@
                 </div>
               </a>`).join("") + `</div>`;
 
-          html += `<div class="ss-foot">截图存放：<code>/tmp/asp_screens/</code>（服务端会自动清理旧文件）</div>`;
+          html += `<div class="ss-foot">截图目录：<code>${base}</code> &nbsp; ZIP：<code>${json.zip || "未生成"}</code></div>`;
           html += `<div class="ss-actions">目录：<a href="${base}" target="_blank">${base}</a>${zipUrl ? ` &nbsp;|&nbsp; ZIP：<a href="${zipUrl}" target="_blank">${json.zip}</a>` : ""}</div>`;
 
           Swal.fire({
@@ -203,20 +229,13 @@
             width: '940px',
             showCancelButton: true,
             showDenyButton: true,
-            showConfirmButton: true,
             confirmButtonText: '📦 一键打包下载',
             denyButtonText: '📁 打开截图目录',
             cancelButtonText: '关闭'
           }).then((result) => {
             if (result.isConfirmed) {
-              if (zipUrl) {
-                window.open(zipUrl, "_blank");
-              } else {
-                // fallback: copy links
-                copyText(listText).then(() => {
-                  Swal.fire({toast:true, position:'top-end', icon:'success', title:'未生成 ZIP，已复制截图链接', showConfirmButton:false, timer:2200});
-                });
-              }
+              if (zipUrl) window.open(zipUrl, "_blank");
+              else window.open(base, "_blank");
             } else if (result.isDenied) {
               window.open(base, "_blank");
             }
@@ -226,15 +245,14 @@
     });
   }
 
-  // 防抖注入按钮（仿 MediaInfo）
+  // 注入按钮（仿 MediaInfo）
   let observerTimer = null;
   const observer = new MutationObserver(() => {
     if (observerTimer) clearTimeout(observerTimer);
     observerTimer = setTimeout(() => {
       let targetFile = "";
-      if (lastRightClickedFile) {
-        targetFile = lastRightClickedFile;
-      } else {
+      if (lastRightClickedFile) targetFile = lastRightClickedFile;
+      else {
         let selectedRows = document.querySelectorAll('.item[aria-selected="true"], .item.selected');
         if (selectedRows.length === 1) {
           let nameEl = selectedRows[0].querySelector('.name');
@@ -266,21 +284,16 @@
               openScreenshot(targetFile);
             };
 
-            // 位置：优先插在 MediaInfo 后面（倒数第二）
             let miBtn = menu.querySelector('.asp-mi-btn-class');
-            if (miBtn) {
-              miBtn.insertAdjacentElement('afterend', btn);
-            } else {
+            if (miBtn) miBtn.insertAdjacentElement('afterend', btn);
+            else {
               let infoBtn = menu.querySelector('button[aria-label="Info"]');
               if (infoBtn) infoBtn.insertAdjacentElement('afterend', btn);
               else menu.appendChild(btn);
             }
           } else {
-            // 若后来出现 MediaInfo，把截图按钮移到其后
             let miBtn = menu.querySelector('.asp-mi-btn-class');
-            if (miBtn && existingBtn.previousElementSibling !== miBtn) {
-              miBtn.insertAdjacentElement('afterend', existingBtn);
-            }
+            if (miBtn && existingBtn.previousElementSibling !== miBtn) miBtn.insertAdjacentElement('afterend', existingBtn);
           }
         } else {
           if (existingBtn) existingBtn.remove();
