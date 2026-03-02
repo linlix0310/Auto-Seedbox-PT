@@ -1269,9 +1269,9 @@ EOF
         sb_factor=200
 
         if [[ "$disk_class" == "ssd" ]]; then
-            sb_low=5120
-            sb_buf=20480
-            sb_factor=250
+            sb_low=16384
+            sb_buf=65536
+            sb_factor=300
         else
             sb_low=3072
             sb_buf=10240
@@ -1285,27 +1285,27 @@ EOF
         fi
 
         if is_g95_preset && [[ "$disk_class" == "ssd" ]]; then
-            sb_low=5120
-            sb_buf=20480
+            sb_low=16384
+            sb_buf=65536
             sb_factor=250
         fi
 
         if [[ "$TUNE_MODE" == "1" ]]; then
             local dyn_async_io dyn_max_connec dyn_max_connec_tor dyn_max_up dyn_max_up_tor dyn_half_open
 
-            dyn_async_io=$([[ "$disk_class" == "ssd" ]] && echo 12 || echo 4)
+            dyn_async_io=$([[ "$disk_class" == "ssd" ]] && echo 8 || echo 4)
 
             if [[ $mem_gb_qbit -ge 30 ]]; then
-                dyn_async_io=16
+                dyn_async_io=12
                 dyn_max_connec=30000
                 dyn_max_connec_tor=1000
                 dyn_max_up=10000
                 dyn_max_up_tor=300
                 dyn_half_open=1000
-                sb_buf=30720
-                sb_factor=280
+                sb_buf=65536
+                sb_factor=320
             elif [[ $mem_gb_qbit -ge 15 ]]; then
-                dyn_async_io=12
+                dyn_async_io=8
                 dyn_max_connec=10000
                 dyn_max_connec_tor=500
                 dyn_max_up=5000
