@@ -1269,8 +1269,8 @@ EOF
         sb_factor=200
 
         if [[ "$disk_class" == "ssd" ]]; then
-            sb_low=16384
-            sb_buf=65536
+            sb_low=3072
+            sb_buf=15360
             sb_factor=300
         else
             sb_low=3072
@@ -1285,8 +1285,8 @@ EOF
         fi
 
         if is_g95_preset && [[ "$disk_class" == "ssd" ]]; then
-            sb_low=16384
-            sb_buf=65536
+            sb_low=3072
+            sb_buf=15360
             sb_factor=300
         fi
 
