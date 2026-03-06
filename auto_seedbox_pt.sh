@@ -34,7 +34,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 QB_WEB_PORT=8080
-QB_BT_PORT=20000
+QB_BT_PORT=47878
 VX_PORT=3000
 FB_PORT=8081
 MI_PORT=8082
@@ -2149,7 +2149,7 @@ if [[ "$CUSTOM_PORT" == "true" ]]; then
     echo -e " ${CYAN}╔══════════════════ 自定义端口 ════════════════╗${NC}"
     echo ""
     QB_WEB_PORT=$(get_input_port "qBit WebUI" 8080)
-    QB_BT_PORT=$(get_input_port "qBit BT监听" 20000)
+    QB_BT_PORT=$(get_input_port "qBit BT监听" 47878)
     [[ "$DO_VX" == "true" ]] && VX_PORT=$(get_input_port "Vertex" 3000)
     [[ "$DO_FB" == "true" ]] && FB_PORT=$(get_input_port "FileBrowser" 8081)
 fi
