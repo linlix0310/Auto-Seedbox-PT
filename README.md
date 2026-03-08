@@ -84,6 +84,12 @@ bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/mai
   -u 用户名 -p 密码 -m 2 -v -f -t -d "https://your-server.com/backup/vertex.zip" -k "zip_password"
 ```
 
+### 6) 已有QB，只安装VT或FB
+```bash
+bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_apps.sh) \
+ -u 用户名 -p '密码' -v -d '备份直链' -k '解压密码' -f -r /data/downloads -o
+```
+
 ---
 
 ## <a id="parameters"></a>📝 参数详解
@@ -102,6 +108,7 @@ bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/mai
 | `-o` | ⭕ | 自定义端口（交互式询问） | `-o` |
 | `-d` | ⭕ | Vertex 备份 zip/tar.gz 下载直链 | `-d http://...` |
 | `-k` | ⭕ | Vertex 备份解压密码 | `-k 123456` |
+| `-r` | ⭕ | 只针对auto_seedbox_apps脚本，FB根目录路径 | `-r /data/downloads` |
 
 ---
 
@@ -111,6 +118,11 @@ bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/mai
 
 ```bash
 bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_pt.sh) --uninstall
+```
+
+### 只针对auto_seedbox_apps脚本单独安装的VT和FB的卸载命令
+```bash
+bash <(wget -qO- https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/main/auto_seedbox_apps.sh) --uninstall
 ```
 
 ---
