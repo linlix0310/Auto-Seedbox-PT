@@ -2,34 +2,15 @@
 ################################################################################
 # Auto-Seedbox-Apps (ASP-Apps)
 # 独立安装 Vertex / FileBrowser，不安装 qBittorrent
-#
-# 支持:
-#   - 仅安装 Vertex
-#   - 仅安装 FileBrowser（含 MediaInfo + Screenshot）
-#   - 同时安装 Vertex + FileBrowser
-#
-# 参数:
-#   -u <user>      WebUI / 面板用户名
-#   -p <pass>      统一密码（必须 >= 12 位）
-#   -v             安装 Vertex
-#   -f             安装 FileBrowser
-#   -r <path>      FileBrowser 根目录（可选）
-#                   - 若填写：只挂载该目录到 /srv
-#                   - 若不填：按主脚本方式挂载整个 $HB 到 /srv
-#   -o             自定义端口（交互式）
-#   -d <url>       Vertex 备份 zip/tar.gz 下载直链（可选）
-#   -k <pass>      Vertex 备份解压密码（可选）
-#   --uninstall    卸载本脚本安装的 VT/FB
-#   -h, --help     查看帮助
 ################################################################################
 
 set -euo pipefail
 IFS=$'\n\t'
 
-# ================= 基础配置 =================
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.1.0"
 SCRIPT_NAME="Auto-Seedbox-Apps"
 LOG_FILE="/tmp/asp_apps_install.log"
+APP_ENV_FILE="/etc/auto_seedbox_apps.env"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -80,7 +61,6 @@ FB_MODE=""
 
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
-# ================= 输出函数 =================
 log_info()  { echo -e "${GREEN}[INFO]${NC} $*" | tee -a "$LOG_FILE" >&2; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*" | tee -a "$LOG_FILE" >&2; }
 log_ok()    { echo -e "${CYAN}[ OK ]${NC} $*" | tee -a "$LOG_FILE" >&2; }
@@ -100,7 +80,7 @@ banner() {
   echo -e "${CYAN}      / __ |_\\ \\  / ___/ ${NC}"
   echo -e "${CYAN}     /_/ |_/___/ /_/     ${NC}"
   echo -e "${BLUE}================================================================${NC}"
-  echo -e "${PURPLE}     ✦     ${SCRIPT_NAME} v${SCRIPT_VERSION}     ✦${NC}"
+  echo -e "${PURPLE}     ✦ ${SCRIPT_NAME} v${SCRIPT_VERSION} ✦${NC}"
   echo -e "${PURPLE}     ✦               作者：Supcutie              ✦${NC}"
   echo -e "${GREEN}    🚀 一键部署 Vertex + FileBrowser Apps 引擎${NC}"
   echo -e "${YELLOW}   💡 GitHub：https://github.com/yimouleng/Auto-Seedbox-PT ${NC}"
@@ -115,7 +95,7 @@ spinner_run() {
   "$@" >>"$LOG_FILE" 2>&1 &
   local pid=$!
   local delay=0.10
-  local spin='|/-\'
+  local spin='|/-\\'
 
   printf "\e[?25l"
   while kill -0 "$pid" 2>/dev/null; do
@@ -140,7 +120,7 @@ spinner_run() {
 }
 
 usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 用法:
   bash auto_seedbox_apps.sh -u 用户名 -p 密码 [-v] [-f] [-r 目录] [-o] [-d URL] [-k ZIP密码]
   bash auto_seedbox_apps.sh --uninstall
@@ -156,28 +136,17 @@ usage() {
   -k   Vertex 备份解压密码（可选）
   --uninstall  卸载 Vertex / FileBrowser
   -h, --help   查看帮助
-
-示例:
-  bash auto_seedbox_apps.sh -u admin -p 'your-strong-pass' -v
-  bash auto_seedbox_apps.sh -u admin -p 'your-strong-pass' -f
-  bash auto_seedbox_apps.sh -u admin -p 'your-strong-pass' -f -r /data/downloads
-  bash auto_seedbox_apps.sh -u admin -p 'your-strong-pass' -v -f -o
-EOF
+USAGE
 }
 
-# ================= 通用函数 =================
-ensure_cmd() {
-  command -v "$1" >/dev/null 2>&1
-}
+ensure_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-confirm() {
+confirm_default_yes() {
   local prompt="${1:-确认继续吗？}"
   local answer
-  read -r -p " ▶ ${prompt} [y/N]: " answer < /dev/tty || true
-  case "${answer:-N}" in
-    y|Y|yes|YES) return 0 ;;
-    *) return 1 ;;
-  esac
+  read -r -p " ▶ ${prompt} [Y/n]: " answer < /dev/tty || true
+  answer=${answer:-Y}
+  [[ "$answer" =~ ^[Yy]$ ]]
 }
 
 validate_pass() {
@@ -218,7 +187,6 @@ install_pkg_if_missing() {
       pkgs+=("$p")
     fi
   done
-
   if [[ ${#pkgs[@]} -gt 0 ]]; then
     wait_for_apt_lock
     export DEBIAN_FRONTEND=noninteractive
@@ -230,8 +198,7 @@ install_pkg_if_missing() {
 download_file() {
   local url="$1"
   local out="$2"
-  spinner_run "下载 $(basename "$out")" \
-    wget -q --retry-connrefused --tries=3 --timeout=30 -O "$out" "$url" \
+  spinner_run "下载 $(basename "$out")" wget -q --retry-connrefused --tries=3 --timeout=30 -O "$out" "$url" \
     || log_err "下载失败: $url"
 }
 
@@ -266,11 +233,9 @@ get_input_port() {
 open_port() {
   local port="$1"
   local proto="${2:-tcp}"
-
   if ensure_cmd ufw && systemctl is-active --quiet ufw; then
     ufw allow "${port}/${proto}" >/dev/null 2>&1 || true
   fi
-
   if ensure_cmd firewall-cmd && systemctl is-active --quiet firewalld; then
     firewall-cmd --zone=public --add-port="${port}/${proto}" --permanent >/dev/null 2>&1 || true
     firewall-cmd --reload >/dev/null 2>&1 || true
@@ -280,64 +245,49 @@ open_port() {
 get_public_ip() {
   local ip
   ip="$(curl -4 -s --max-time 5 https://api.ipify.org || true)"
-  if [[ -z "$ip" ]]; then
-    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
-  fi
+  [[ -z "$ip" ]] && ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
   echo "${ip:-YOUR_SERVER_IP}"
 }
 
-# ================= 参数解析 =================
+persist_env() {
+  cat > "$APP_ENV_FILE" <<EOF_ENV
+APP_USER="$APP_USER"
+HB="$HB"
+VX_PORT="$VX_PORT"
+FB_PORT="$FB_PORT"
+MI_PORT="$MI_PORT"
+SS_PORT="$SS_PORT"
+FB_MODE="$FB_MODE"
+FB_ROOT="$FB_ROOT"
+FB_SCAN_BASE="$FB_SCAN_BASE"
+FB_MOUNT_SOURCE="$FB_MOUNT_SOURCE"
+VX_DIR="$VX_DIR"
+FB_DIR="$FB_DIR"
+EOF_ENV
+  chmod 600 "$APP_ENV_FILE"
+}
+
+load_env_if_exists() {
+  if [[ -f "$APP_ENV_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$APP_ENV_FILE"
+  fi
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -u)
-        [[ $# -ge 2 ]] || log_err "-u 缺少参数。"
-        APP_USER="$2"
-        shift 2
-        ;;
-      -p)
-        [[ $# -ge 2 ]] || log_err "-p 缺少参数。"
-        APP_PASS="$2"
-        shift 2
-        ;;
-      -v)
-        DO_VX=true
-        shift
-        ;;
-      -f)
-        DO_FB=true
-        shift
-        ;;
-      -r)
-        [[ $# -ge 2 ]] || log_err "-r 缺少参数。"
-        FB_ROOT="$2"
-        shift 2
-        ;;
-      -o)
-        CUSTOM_PORT=true
-        shift
-        ;;
-      -d)
-        [[ $# -ge 2 ]] || log_err "-d 缺少参数。"
-        VX_RESTORE_URL="$2"
-        shift 2
-        ;;
-      -k)
-        [[ $# -ge 2 ]] || log_err "-k 缺少参数。"
-        VX_ZIP_PASS="$2"
-        shift 2
-        ;;
-      --uninstall)
-        ACTION="uninstall"
-        shift
-        ;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      *)
-        log_err "未知参数: $1"
-        ;;
+      -u) [[ $# -ge 2 ]] || log_err "-u 缺少参数。"; APP_USER="$2"; shift 2 ;;
+      -p) [[ $# -ge 2 ]] || log_err "-p 缺少参数。"; APP_PASS="$2"; shift 2 ;;
+      -v) DO_VX=true; shift ;;
+      -f) DO_FB=true; shift ;;
+      -r) [[ $# -ge 2 ]] || log_err "-r 缺少参数。"; FB_ROOT="$2"; shift 2 ;;
+      -o) CUSTOM_PORT=true; shift ;;
+      -d) [[ $# -ge 2 ]] || log_err "-d 缺少参数。"; VX_RESTORE_URL="$2"; shift 2 ;;
+      -k) [[ $# -ge 2 ]] || log_err "-k 缺少参数。"; VX_ZIP_PASS="$2"; shift 2 ;;
+      --uninstall) ACTION="uninstall"; shift ;;
+      -h|--help) usage; exit 0 ;;
+      *) log_err "未知参数: $1" ;;
     esac
   done
 }
@@ -346,25 +296,20 @@ validate_args() {
   if [[ "$ACTION" == "uninstall" ]]; then
     return 0
   fi
-
   [[ -n "$APP_USER" ]] || log_err "必须提供 -u 用户名。"
   [[ -n "$APP_PASS" ]] || log_err "必须提供 -p 密码。"
   validate_pass "$APP_PASS"
-
   if [[ "$DO_VX" != true && "$DO_FB" != true ]]; then
     log_err "至少需要指定 -v 或 -f。"
   fi
-
   if [[ -n "$VX_ZIP_PASS" && -z "$VX_RESTORE_URL" ]]; then
     log_err "使用 -k 时必须同时提供 -d。"
   fi
-
   if [[ "$DO_FB" != true && -n "$FB_ROOT" ]]; then
     log_warn "检测到 -r 参数，但未指定 -f，FileBrowser 根目录设置将被忽略。"
   fi
 }
 
-# ================= 用户与目录 =================
 setup_user() {
   if [[ "$APP_USER" == "root" ]]; then
     HB="/root"
@@ -391,7 +336,10 @@ prepare_dirs() {
   mkdir -p "$BASE_DIR"
 
   if [[ "$DO_VX" == true ]]; then
-    mkdir -p "$VX_DATA_DIR"
+    mkdir -p "$VX_DIR"
+    mkdir -p "$VX_DATA_DIR"/{client,douban,irc,push,race,rss,rule,script,server,site,watch}
+    mkdir -p "$VX_DATA_DIR/douban/set" "$VX_DATA_DIR/watch/set"
+    mkdir -p "$VX_DATA_DIR/rule"/{delete,link,rss,race,raceSet}
     chown -R "$APP_USER:$APP_USER" "$VX_DIR" || true
   fi
 
@@ -408,161 +356,140 @@ prepare_dirs() {
       FB_MOUNT_SOURCE="$HB"
       FB_ROOT="$HB"
     fi
-
-    mkdir -p "${FB_DIR}/config" "${FB_DIR}/database"
+    mkdir -p "$FB_DIR/config" "$FB_DIR/database"
     chown -R "$APP_USER:$APP_USER" "$FB_DIR" || true
     chown -R "$APP_USER:$APP_USER" "$FB_MOUNT_SOURCE" || true
   fi
 }
 
-# ================= Docker / 依赖 =================
 ensure_base_dependencies() {
   install_pkg_if_missing ca-certificates curl wget gnupg lsb-release jq unzip tar python3 net-tools mediainfo ffmpeg nginx
 }
 
 ensure_docker() {
   section "检查 Docker 环境"
-
   if ensure_cmd docker; then
     log_ok "Docker 已安装。"
   else
     log_warn "未检测到 Docker，开始安装..."
-
     install_pkg_if_missing apt-transport-https software-properties-common
     mkdir -p /etc/apt/keyrings
-
     if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
       curl -fsSL "https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg" \
         | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
       chmod a+r /etc/apt/keyrings/docker.gpg
     fi
-
     . /etc/os-release
-    cat >/etc/apt/sources.list.d/docker.list <<EOF
-deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable
-EOF
+    cat >/etc/apt/sources.list.d/docker.list <<EOF_DOCKER
 
+deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable
+EOF_DOCKER
     wait_for_apt_lock
     spinner_run "更新 apt 索引" apt-get update -y
     spinner_run "安装 Docker" apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   fi
-
   systemctl enable docker >/dev/null 2>&1 || true
   systemctl restart docker >/dev/null 2>&1 || true
   docker info >/dev/null 2>&1 || log_err "Docker 服务不可用，请检查系统状态。"
   log_ok "Docker 环境正常。"
 }
 
-# ================= Vertex =================
 restore_vertex_backup() {
   [[ -n "$VX_RESTORE_URL" ]] || return 0
 
   section "恢复 Vertex 备份"
-
-  local filename
+  local filename archive extract_tmp extract_failed real_set real_dir current_pass user_choice
   filename="$(basename "$VX_RESTORE_URL")"
-  local archive="${TEMP_DIR}/${filename}"
+  archive="${TEMP_DIR}/${filename}"
+  extract_tmp="$(mktemp -d)"
+  extract_failed=false
 
   download_file "$VX_RESTORE_URL" "$archive"
-
   rm -rf "${VX_DATA_DIR:?}/"*
   mkdir -p "$VX_DATA_DIR"
 
-  case "$archive" in
-    *.zip)
-      if [[ -n "$VX_ZIP_PASS" ]]; then
-        spinner_run "解压 Vertex ZIP 备份" unzip -qo -P "$VX_ZIP_PASS" "$archive" -d "$VX_DATA_DIR"
-      else
-        spinner_run "解压 Vertex ZIP 备份" unzip -qo "$archive" -d "$VX_DATA_DIR"
+  if [[ "$archive" == *.tar.gz || "$archive" == *.tgz ]]; then
+    if ! spinner_run "解压 Vertex tar.gz 备份" tar -xzf "$archive" -C "$extract_tmp"; then
+      log_warn "tar.gz 解压失败，降级为全新安装。"
+      extract_failed=true
+    fi
+  elif [[ "$archive" == *.tar ]]; then
+    if ! spinner_run "解压 Vertex tar 备份" tar -xf "$archive" -C "$extract_tmp"; then
+      log_warn "tar 解压失败，降级为全新安装。"
+      extract_failed=true
+    fi
+  else
+    while true; do
+      current_pass="${VX_ZIP_PASS:-ASP_DUMMY_PASS_NO_INPUT}"
+      if spinner_run "解压 Vertex ZIP 备份" unzip -q -o -P "$current_pass" "$archive" -d "$extract_tmp"; then
+        break
       fi
-      ;;
-    *.tar.gz|*.tgz)
-      spinner_run "解压 Vertex tar.gz 备份" tar -xzf "$archive" -C "$VX_DATA_DIR"
-      ;;
-    *.tar)
-      spinner_run "解压 Vertex tar 备份" tar -xf "$archive" -C "$VX_DATA_DIR"
-      ;;
-    *)
-      log_err "暂不支持的备份格式，仅支持 zip/tar/tar.gz/tgz。"
-      ;;
-  esac
+      echo
+      log_warn "ZIP 解压失败：密码错误或文件损坏。"
+      echo "  1. 输入新密码重试"
+      echo "  2. 输入 skip 跳过恢复"
+      echo "  3. 输入 exit 退出脚本"
+      read -r -p "  请输入指令或新密码: " user_choice < /dev/tty
+      if [[ "$user_choice" == "skip" ]]; then
+        log_info "跳过备份恢复，执行全新安装。"
+        extract_failed=true
+        break
+      elif [[ "$user_choice" == "exit" ]]; then
+        log_err "用户终止部署流程。"
+      elif [[ -n "$user_choice" ]]; then
+        VX_ZIP_PASS="$user_choice"
+      fi
+    done
+  fi
 
-  chown -R "$APP_USER:$APP_USER" "$VX_DATA_DIR" || true
-  log_ok "Vertex 备份恢复完成。"
+  if [[ "$extract_failed" == false ]]; then
+    real_set="$(find "$extract_tmp" -name 'setting.json' | head -n 1)"
+    if [[ -n "$real_set" ]]; then
+      real_dir="$(dirname "$real_set")"
+      cp -a "$real_dir"/. "$VX_DATA_DIR/" 2>/dev/null || true
+    else
+      log_warn "备份包结构异常（未找到 setting.json），降级为全新安装。"
+    fi
+  fi
+
+  rm -rf "$extract_tmp"
+  chown -R "$APP_USER:$APP_USER" "$VX_DIR" || true
 }
 
 reset_vertex_password() {
   section "处理 Vertex 密码"
-
-  local changed=0
-  local escaped_pass
-  local vx_pass_md5
-
-  escaped_pass="$(printf '%s' "$APP_PASS" | sed 's/[\/&]/\\&/g')"
+  local vx_pass_md5 set_file
   vx_pass_md5="$(printf '%s' "$APP_PASS" | md5sum | awk '{print $1}')"
+  set_file="$VX_DATA_DIR/setting.json"
 
-  local set_file="${VX_DATA_DIR}/setting.json"
-  if [[ -f "$set_file" ]]; then
-    python3 - "$set_file" "$APP_USER" "$vx_pass_md5" <<'PY'
-import json, sys
+  python3 - "$set_file" "$APP_USER" "$vx_pass_md5" <<'PY'
+import json, sys, os
 p, u, pw = sys.argv[1], sys.argv[2], sys.argv[3]
-try:
-    with open(p, 'r', encoding='utf-8') as f:
-        d = json.load(f)
-except Exception:
-    d = {}
-d["username"] = u
-d["password"] = pw
-d["port"] = int(d.get("port", 3000) or 3000)
+d = {}
+if os.path.exists(p):
+    try:
+        with open(p, 'r', encoding='utf-8-sig') as f:
+            d = json.load(f)
+    except Exception:
+        d = {}
+d['username'] = u
+# Vertex 的 setting.json 使用 md5 密码，和主脚本一致
+d['password'] = pw
+d['port'] = int(d.get('port', 3000) or 3000)
 with open(p, 'w', encoding='utf-8') as f:
     json.dump(d, f, ensure_ascii=False, indent=2)
 PY
-    changed=1
-  fi
-
-  local candidates=(
-    "${VX_DATA_DIR}/config.json"
-    "${VX_DATA_DIR}/setting.json"
-    "${VX_DATA_DIR}/settings.json"
-    "${VX_DATA_DIR}/app/config.json"
-    "${VX_DATA_DIR}/data/config.json"
-    "${VX_DATA_DIR}/data/setting.json"
-  )
-
-  local f
-  for f in "${candidates[@]}"; do
-    if [[ -f "$f" ]]; then
-      if grep -qE '"username"[[:space:]]*:' "$f"; then
-        sed -i -E "s/(\"username\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1${APP_USER}\2/g" "$f" || true
-        changed=1
-      fi
-      if grep -qE '"password"[[:space:]]*:' "$f"; then
-        sed -i -E "s/(\"password\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1${escaped_pass}\2/g" "$f" || true
-        changed=1
-      fi
-      if grep -qE '"adminPassword"[[:space:]]*:' "$f"; then
-        sed -i -E "s/(\"adminPassword\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1${escaped_pass}\2/g" "$f" || true
-        changed=1
-      fi
-    fi
-  done
 
   chown -R "$APP_USER:$APP_USER" "$VX_DIR" || true
-
-  if [[ $changed -eq 1 ]]; then
-    log_ok "已尝试更新 Vertex 登录配置。"
-  else
-    log_warn "未识别到 Vertex 明确密码配置文件。"
-    log_warn "若你的 Vertex 数据结构变更，请按实际情况补强 reset_vertex_password()。"
-  fi
+  find "$VX_DATA_DIR" -type d -exec chmod 775 {} \; 2>/dev/null || true
+  find "$VX_DATA_DIR" -type f -exec chmod 664 {} \; 2>/dev/null || true
+  find "$VX_DATA_DIR/script" -type f \( -name "*.sh" -o -name "*.py" \) -exec chmod 775 {} \; 2>/dev/null || true
+  log_ok "已更新 Vertex 登录配置。"
 }
 
 install_vertex() {
   section "部署 Vertex"
-
-  mkdir -p "$VX_DIR"
   docker rm -f "$VX_CONTAINER_NAME" >/dev/null 2>&1 || true
-
   spinner_run "拉取 Vertex 镜像" docker pull "$VERTEX_IMAGE"
   spinner_run "启动 Vertex 容器" docker run -d \
     --name "$VX_CONTAINER_NAME" \
@@ -571,7 +498,6 @@ install_vertex() {
     -v "${VX_DIR}:/vertex" \
     -e TZ="${TIMEZONE}" \
     "$VERTEX_IMAGE"
-
   open_port "$VX_PORT"
   log_ok "Vertex 已启动。"
 }
@@ -585,28 +511,21 @@ vertex_post_check() {
   fi
 }
 
-# ================= FileBrowser 增强 =================
 install_fb_frontend_assets() {
   section "部署 FileBrowser 前端增强资源"
+  local js_remote_url ss_js_url
+  js_remote_url="https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/refs/heads/main/asp-mediainfo.js"
+  ss_js_url="https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/refs/heads/main/asp-screenshot.js"
 
-  local JS_REMOTE_URL="https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/refs/heads/main/asp-mediainfo.js"
-  local SS_JS_URL="https://raw.githubusercontent.com/yimouleng/Auto-Seedbox-PT/refs/heads/main/asp-screenshot.js"
-
-  spinner_run "拉取 MediaInfo 前端扩展" \
-    sh -c "wget -qO /usr/local/bin/asp-mediainfo.js \"${JS_REMOTE_URL}?v=$(date +%s%N)\""
-
-  spinner_run "拉取 SweetAlert2" \
-    wget -qO /usr/local/bin/sweetalert2.all.min.js \
-    "https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"
-
-  spinner_run "拉取 Screenshot 截图扩展" \
-    sh -c "wget -qO /usr/local/bin/asp-screenshot.js \"${SS_JS_URL}?v=$(date +%s%N)\""
+  spinner_run "拉取 MediaInfo 前端扩展" sh -c "wget -qO /usr/local/bin/asp-mediainfo.js \"${js_remote_url}?v=$(date +%s%N)\""
+  spinner_run "拉取 SweetAlert2" wget -qO /usr/local/bin/sweetalert2.all.min.js "https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"
+  spinner_run "拉取 Screenshot 截图扩展" sh -c "wget -qO /usr/local/bin/asp-screenshot.js \"${ss_js_url}?v=$(date +%s%N)\""
 
   chmod 644 /usr/local/bin/asp-mediainfo.js /usr/local/bin/asp-screenshot.js /usr/local/bin/sweetalert2.all.min.js
 }
 
 write_mediainfo_backend() {
-  cat > /usr/local/bin/asp-mediainfo.py << 'EOF_PY'
+  cat > /usr/local/bin/asp-mediainfo.py <<'EOF_PY'
 import http.server, socketserver, urllib.parse, subprocess, json, os, sys
 PORT = int(sys.argv[2])
 BASE_DIR = sys.argv[1]
@@ -618,24 +537,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             query = urllib.parse.parse_qs(parsed.query)
             file_path = query.get('file', [''])[0].lstrip('/')
             full_path = os.path.abspath(os.path.join(BASE_DIR, file_path))
-
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
-
             if not full_path.startswith(os.path.abspath(BASE_DIR)) or not os.path.isfile(full_path):
                 self.wfile.write(json.dumps({"error": "非法路径或文件不存在"}).encode('utf-8'))
                 return
-
             try:
                 res = subprocess.run(['mediainfo', '--Output=JSON', full_path], capture_output=True, text=True)
                 try:
                     json.loads(res.stdout)
                     self.wfile.write(res.stdout.encode('utf-8'))
                     return
-                except:
+                except Exception:
                     pass
-
                 res_text = subprocess.run(['mediainfo', full_path], capture_output=True, text=True)
                 lines = res_text.stdout.split('\n')
                 tracks = []
@@ -654,9 +569,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         current_track[k.strip()] = v.strip()
                 if current_track:
                     tracks.append(current_track)
-
                 self.wfile.write(json.dumps({"media": {"track": tracks}}).encode('utf-8'))
-
             except Exception as e:
                 self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
         else:
@@ -671,9 +584,8 @@ EOF_PY
 }
 
 write_screenshot_backend() {
-  cat > /usr/local/bin/asp-screenshot.py << 'EOF_PY_SS'
+  cat > /usr/local/bin/asp-screenshot.py <<'EOF_PY_SS'
 import http.server, socketserver, urllib.parse, subprocess, json, os, sys, time, shutil, uuid, zipfile
-
 PORT = int(sys.argv[2])
 BASE_DIR = sys.argv[1]
 OUT_ROOT = "/tmp/asp_screens"
@@ -717,23 +629,20 @@ def cleanup_old(max_age_sec=48*3600, max_dirs=200):
 def ffprobe_meta(path):
     meta = {"width": None, "height": None, "duration": None}
     try:
-        r = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", path],
-            capture_output=True, text=True, timeout=12
-        )
+        r = subprocess.run([
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", path
+        ], capture_output=True, text=True, timeout=12)
         s = (r.stdout or "").strip()
         if s:
             meta["duration"] = float(s)
     except Exception:
         pass
     try:
-        r = subprocess.run(
-            ["ffprobe", "-v", "error", "-select_streams", "v:0",
-             "-show_entries", "stream=width,height",
-             "-of", "json", path],
-            capture_output=True, text=True, timeout=12
-        )
+        r = subprocess.run([
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height", "-of", "json", path
+        ], capture_output=True, text=True, timeout=12)
         j = json.loads(r.stdout or "{}")
         streams = j.get("streams") or []
         if streams:
@@ -787,63 +696,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if parsed.path != "/api/ss":
             self._send(404, {"error": "not found"})
             return
-
         qs = urllib.parse.parse_qs(parsed.query)
         rel = qs.get("file", [""])[0]
-
         def geti(key, default):
             try:
                 return int(qs.get(key, [str(default)])[0] or default)
             except Exception:
                 return default
-
         probe = (qs.get("probe", ["0"])[0] or "0").strip()
-
         full = safe_join(BASE_DIR, rel)
         if not full or not os.path.isfile(full):
             self._send(400, {"error": "非法路径或文件不存在"})
             return
-
         if probe in ("1", "true", "yes"):
             meta = ffprobe_meta(full)
             self._send(200, {"meta": meta})
             return
-
-        n = geti("n", 6)
-        width = geti("width", 1280)
-        head = geti("head", 5)
-        tail = geti("tail", 5)
+        n = max(1, min(geti("n", 6), 20))
+        width = max(320, min(geti("width", 1280), 3840))
+        head = max(0, min(geti("head", 5), 49))
+        tail = max(0, min(geti("tail", 5), 49))
         fmt = (qs.get("fmt", ["jpg"])[0] or "jpg").lower()
         zip_on = (qs.get("zip", ["1"])[0] or "1").strip()
-
-        n = max(1, min(n, 20))
-        width = max(320, min(width, 3840))
-        head = max(0, min(head, 49))
-        tail = max(0, min(tail, 49))
         if fmt not in ("jpg", "jpeg", "png"):
             fmt = "jpg"
         make_zip_on = zip_on not in ("0", "false", "no")
-
         os.makedirs(OUT_ROOT, exist_ok=True)
         cleanup_old()
-
         token = uuid.uuid4().hex
         out_dir = os.path.join(OUT_ROOT, token)
         os.makedirs(out_dir, exist_ok=True)
-
         meta = ffprobe_meta(full)
         dur = meta.get("duration")
         ts = make_timestamps(dur, n, head, tail)
-
         files = []
         for i, t in enumerate(ts, start=1):
             out_name = f"{i}.{fmt}"
             out_path = os.path.join(out_dir, out_name)
             vf = f"scale={width}:-2"
-            cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error",
-                   "-ss", f"{t:.3f}", "-i", full,
-                   "-frames:v", "1", "-an",
-                   "-vf", vf]
+            cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{t:.3f}", "-i", full, "-frames:v", "1", "-an", "-vf", vf]
             if fmt in ("jpg", "jpeg"):
                 cmd += ["-q:v", "2"]
             cmd += ["-y", out_path]
@@ -853,7 +744,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     files.append(out_name)
             except Exception:
                 pass
-
         if not files:
             try:
                 shutil.rmtree(out_dir, ignore_errors=True)
@@ -861,16 +751,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass
             self._send(500, {"error": "截图失败：ffmpeg 执行失败或文件不支持"})
             return
-
         zip_file = make_zip(out_dir, files) if make_zip_on else None
-
-        payload = {
-            "base": f"/__asp_ss__/{token}/",
-            "files": files,
-            "zip": zip_file,
-            "params": {"n": n, "width": width, "head": head, "tail": tail, "fmt": fmt},
-            "meta": meta
-        }
+        payload = {"base": f"/__asp_ss__/{token}/", "files": files, "zip": zip_file,
+                   "params": {"n": n, "width": width, "head": head, "tail": tail, "fmt": fmt}, "meta": meta}
         self._send(200, payload)
 
 socketserver.TCPServer.allow_reuse_address = True
@@ -882,8 +765,7 @@ EOF_PY_SS
 
 install_mediainfo_service() {
   write_mediainfo_backend
-
-  cat > /etc/systemd/system/asp-mediainfo.service << EOF
+  cat > /etc/systemd/system/asp-mediainfo.service <<EOF_MI
 [Unit]
 Description=ASP MediaInfo API Service
 After=network.target
@@ -896,8 +778,7 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
-EOF
-
+EOF_MI
   systemctl daemon-reload
   systemctl enable asp-mediainfo.service >/dev/null 2>&1 || true
   systemctl restart asp-mediainfo.service
@@ -905,8 +786,7 @@ EOF
 
 install_screenshot_service() {
   write_screenshot_backend
-
-  cat > /etc/systemd/system/asp-screenshot.service << EOF
+  cat > /etc/systemd/system/asp-screenshot.service <<EOF_SS
 [Unit]
 Description=ASP Screenshot API Service (ffmpeg)
 After=network.target
@@ -919,8 +799,7 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
-EOF
-
+EOF_SS
   systemctl daemon-reload
   systemctl enable asp-screenshot.service >/dev/null 2>&1 || true
   systemctl restart asp-screenshot.service
@@ -928,8 +807,7 @@ EOF
 
 install_fb_nginx_proxy() {
   section "配置 FileBrowser Nginx 代理"
-
-  cat > "$NGINX_FB_CONF" << EOF
+  cat > "$NGINX_FB_CONF" <<EOF_NGX
 server {
     listen $FB_PORT;
     server_name _;
@@ -940,12 +818,10 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-
         proxy_set_header Host \$http_host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-
         proxy_set_header Accept-Encoding "";
         sub_filter '</body>' '<script src="/asp-mediainfo.js"></script><script src="/asp-screenshot.js"></script></body>';
         sub_filter_once on;
@@ -981,8 +857,7 @@ server {
         proxy_pass http://127.0.0.1:$MI_PORT;
     }
 }
-EOF
-
+EOF_NGX
   nginx -t >/dev/null 2>&1 || log_err "Nginx 配置校验失败，请检查 $NGINX_FB_CONF"
   systemctl enable nginx >/dev/null 2>&1 || true
   systemctl restart nginx
@@ -990,11 +865,9 @@ EOF
 
 install_filebrowser() {
   section "部署 FileBrowser"
-
   docker rm -f "$FB_CONTAINER_NAME" >/dev/null 2>&1 || true
-
-  rm -rf "${FB_DIR}"
-  mkdir -p "${FB_DIR}/config" "${FB_DIR}/database"
+  rm -rf "$FB_DIR"
+  mkdir -p "$FB_DIR/config" "$FB_DIR/database"
 
   install_fb_frontend_assets
   install_mediainfo_service
@@ -1002,19 +875,8 @@ install_filebrowser() {
   install_fb_nginx_proxy
 
   spinner_run "拉取 FileBrowser 镜像" docker pull "$FILEBROWSER_IMAGE"
-
-  spinner_run "初始化 FileBrowser 数据库" \
-    sh -c "docker run --rm --user 0:0 \
-      -v \"${FB_DIR}/database\":/database \
-      ${FILEBROWSER_IMAGE} \
-      -d /database/filebrowser.db config init >/dev/null 2>&1 || true"
-
-  spinner_run "创建 FileBrowser 管理员" \
-    sh -c "docker run --rm --user 0:0 \
-      -v \"${FB_DIR}/database\":/database \
-      ${FILEBROWSER_IMAGE} \
-      -d /database/filebrowser.db users add \"${APP_USER}\" \"${APP_PASS}\" --perm.admin >/dev/null 2>&1 || true"
-
+  spinner_run "初始化 FileBrowser 数据库" sh -c "docker run --rm --user 0:0 -v \"${FB_DIR}/database\":/database ${FILEBROWSER_IMAGE} -d /database/filebrowser.db config init >/dev/null 2>&1 || true"
+  spinner_run "创建 FileBrowser 管理员" sh -c "docker run --rm --user 0:0 -v \"${FB_DIR}/database\":/database ${FILEBROWSER_IMAGE} -d /database/filebrowser.db users add \"${APP_USER}\" \"${APP_PASS}\" --perm.admin >/dev/null 2>&1 || true"
   spinner_run "启动 FileBrowser 容器" docker run -d \
     --name "$FB_CONTAINER_NAME" \
     --restart unless-stopped \
@@ -1045,10 +907,8 @@ filebrowser_post_check() {
   fi
 }
 
-# ================= 端口处理 =================
 handle_ports() {
   section "检查端口"
-
   if [[ "$CUSTOM_PORT" == true ]]; then
     [[ "$DO_VX" == true ]] && VX_PORT="$(get_input_port '请输入 Vertex 端口' "$VX_PORT")"
     [[ "$DO_FB" == true ]] && FB_PORT="$(get_input_port '请输入 FileBrowser 端口' "$FB_PORT")"
@@ -1060,24 +920,23 @@ handle_ports() {
       log_err "默认 FileBrowser 端口 ${FB_PORT} 已被占用，请改用 -o。"
     fi
   fi
-
-  while check_port_occupied "$MI_PORT"; do
-    MI_PORT=$((MI_PORT + 1))
-  done
-  while check_port_occupied "$SS_PORT"; do
-    SS_PORT=$((SS_PORT + 1))
-  done
-
+  while check_port_occupied "$MI_PORT"; do MI_PORT=$((MI_PORT + 1)); done
+  while check_port_occupied "$SS_PORT"; do SS_PORT=$((SS_PORT + 1)); done
   if [[ "$DO_VX" == true && "$DO_FB" == true && "$VX_PORT" == "$FB_PORT" ]]; then
     log_err "Vertex 与 FileBrowser 端口不能相同。"
   fi
-
   log_ok "端口检查通过。"
 }
 
-# ================= 卸载 =================
 uninstall_apps() {
   section "卸载模式"
+  load_env_if_exists
+
+  local default_user target_user target_home input_user
+  default_user="${APP_USER:-admin}"
+  read -r -p "请输入要卸载的用户名 [默认: ${default_user}]: " input_user < /dev/tty || true
+  target_user="${input_user:-$default_user}"
+  target_home="$(eval echo "~$target_user" 2>/dev/null || echo "/home/$target_user")"
 
   echo "即将移除以下资源："
   echo "  - 容器: ${VX_CONTAINER_NAME}, ${FB_CONTAINER_NAME}"
@@ -1085,18 +944,37 @@ uninstall_apps() {
   echo "  - 服务: asp-mediainfo.service, asp-screenshot.service"
   echo "  - Nginx: ${NGINX_FB_CONF}"
   echo
-  echo "不会自动删除："
-  echo "  - 自定义 -r 指定的目录"
-  echo "  - 主脚本安装的其它组件"
-  echo
 
-  confirm "确认开始卸载吗？" || {
-    log_warn "用户取消卸载。"
-    exit 0
-  }
+  confirm_default_yes "确认开始卸载吗？" || { log_warn "用户取消卸载。"; exit 0; }
+
+  local delete_fb_real_data="N"
+  local delete_target=""
+  if [[ -n "${FB_MODE:-}" && -n "${FB_MOUNT_SOURCE:-}" && "${FB_MODE:-}" == "custom-root" && -d "${FB_MOUNT_SOURCE}" ]]; then
+    echo
+    echo "检测到 FileBrowser 实际数据目录: ${FB_MOUNT_SOURCE}"
+    if confirm_default_yes "是否同时删除该目录？"; then
+      delete_fb_real_data="Y"
+      delete_target="$FB_MOUNT_SOURCE"
+    fi
+  elif [[ -d "$target_home/filebrowser_data" && -z "${FB_MOUNT_SOURCE:-}" ]]; then
+    # 兼容旧版脚本可能使用的目录
+    echo
+    echo "检测到旧版 FileBrowser 数据目录: $target_home/filebrowser_data"
+    if confirm_default_yes "是否同时删除该目录？"; then
+      delete_fb_real_data="Y"
+      delete_target="$target_home/filebrowser_data"
+    fi
+  elif [[ "${FB_MODE:-}" == "home-root" ]]; then
+    log_info "当前 FileBrowser 使用主脚本目录方式（用户整个 Home 目录），为避免误删，不会自动删除 ${HB:-$target_home}。"
+  fi
 
   docker rm -f "$VX_CONTAINER_NAME" >/dev/null 2>&1 || true
   docker rm -f "$FB_CONTAINER_NAME" >/dev/null 2>&1 || true
+
+  if command -v docker >/dev/null 2>&1; then
+    docker rmi "$VERTEX_IMAGE" >/dev/null 2>&1 || true
+    docker rmi "$FILEBROWSER_IMAGE" >/dev/null 2>&1 || true
+  fi
 
   systemctl stop asp-mediainfo.service 2>/dev/null || true
   systemctl disable asp-mediainfo.service 2>/dev/null || true
@@ -1111,33 +989,33 @@ uninstall_apps() {
   rm -f /usr/local/bin/asp-screenshot.js
   rm -f /usr/local/bin/sweetalert2.all.min.js
   rm -f "$NGINX_FB_CONF"
+  rm -f "$APP_ENV_FILE"
 
   systemctl daemon-reload
   systemctl restart nginx >/dev/null 2>&1 || true
 
   rm -rf "$VX_DIR" "$FB_DIR"
+  rm -rf "$target_home/vertex"
+
+  if [[ "$delete_fb_real_data" == "Y" && -n "$delete_target" ]]; then
+    rm -rf "$delete_target"
+    log_ok "已删除 FileBrowser 实际数据目录: $delete_target"
+  fi
 
   log_ok "卸载完成。"
-  echo
-  echo "如需删除 FileBrowser 实际数据目录，请手动执行："
-  echo "  rm -rf <你的 -r 目录>"
 }
 
-# ================= 总结输出 =================
 show_plan() {
   section "安装计划"
-
   echo "执行模式:"
   [[ "$DO_VX" == true ]] && echo "  - 安装 Vertex"
   [[ "$DO_FB" == true ]] && echo "  - 安装 FileBrowser"
-
   echo
   echo "基础信息:"
   echo "  - 用户名          : ${APP_USER}"
   echo "  - 安装目录        : ${BASE_DIR}"
   [[ "$DO_VX" == true ]] && echo "  - Vertex 端口     : ${VX_PORT}"
   [[ "$DO_FB" == true ]] && echo "  - FileBrowser 端口: ${FB_PORT}"
-
   if [[ "$DO_FB" == true ]]; then
     if [[ "$FB_MODE" == "custom-root" ]]; then
       echo "  - FB 模式         : 自定义根目录"
@@ -1147,18 +1025,13 @@ show_plan() {
       echo "  - FB 根目录       : ${HB}"
     fi
   fi
-
-  if [[ -n "$VX_RESTORE_URL" ]]; then
-    echo "  - Vertex 备份     : ${VX_RESTORE_URL}"
-  fi
+  [[ -n "$VX_RESTORE_URL" ]] && echo "  - Vertex 备份     : ${VX_RESTORE_URL}"
 }
 
 summary() {
   local ip
   ip="$(get_public_ip)"
-
   section "安装完成"
-
   if [[ "$DO_VX" == true ]]; then
     echo -e " Vertex URL           : ${CYAN}http://${ip}:${VX_PORT}${NC}"
     echo -e " Vertex 用户          : ${CYAN}${APP_USER}${NC}"
@@ -1168,34 +1041,25 @@ summary() {
     echo -e " Vertex 镜像          : ${CYAN}${VERTEX_IMAGE}${NC}"
     echo -e " Vertex 说明          : ${YELLOW}未默认配置下载器，请登录后手动设置。${NC}"
     echo -e " Vertex 日志命令      : ${CYAN}docker logs ${VX_CONTAINER_NAME} --tail 200${NC}"
-    echo -e " Vertex 重启命令      : ${CYAN}docker restart ${VX_CONTAINER_NAME}${NC}"
     echo
   fi
-
   if [[ "$DO_FB" == true ]]; then
     echo -e " FileBrowser URL      : ${CYAN}http://${ip}:${FB_PORT}${NC}"
     echo -e " FileBrowser 用户     : ${CYAN}${APP_USER}${NC}"
     echo -e " FileBrowser 密码     : ${CYAN}${APP_PASS}${NC}"
     echo -e " FileBrowser 根目录   : ${CYAN}${FB_ROOT}${NC}"
-    echo -e " FileBrowser 扫描根   : ${CYAN}${FB_SCAN_BASE}${NC}"
     echo -e " FileBrowser 模式     : ${CYAN}${FB_MODE}${NC}"
     echo -e " FileBrowser 容器名   : ${CYAN}${FB_CONTAINER_NAME}${NC}"
-    echo -e " FileBrowser 镜像     : ${CYAN}${FILEBROWSER_IMAGE}${NC}"
     echo -e " MediaInfo            : ${YELLOW}由本机 Nginx 代理分发${NC}"
     echo -e " Screenshot           : ${YELLOW}由本机 Nginx 代理分发${NC}"
     echo -e " FileBrowser 日志命令 : ${CYAN}docker logs ${FB_CONTAINER_NAME} --tail 200${NC}"
-    echo -e " FileBrowser 重启命令 : ${CYAN}docker restart ${FB_CONTAINER_NAME}${NC}"
     echo
   fi
-
   echo -e " 安装日志             : ${CYAN}${LOG_FILE}${NC}"
-  echo
 }
 
-# ================= 主流程 =================
 main() {
   : > "$LOG_FILE"
-
   banner
   parse_args "$@"
   check_root
@@ -1226,6 +1090,7 @@ main() {
     filebrowser_post_check
   fi
 
+  persist_env
   summary
 }
 
