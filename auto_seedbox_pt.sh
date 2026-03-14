@@ -138,7 +138,7 @@ download_file() {
 }
 
 validate_pass() {
-    [[ ${#1} -ge 12 ]] || log_err "安全性不足：密码长度必须 ≥ 12 位！"
+    [[ ${#1} -ge 8 ]] || log_err "安全性不足：密码长度必须 ≥ 8 位！"
 }
 
 wait_for_lock() {
@@ -2133,9 +2133,9 @@ if [[ -n "$APP_PASS" ]]; then validate_pass "$APP_PASS"; fi
 
 if [[ -z "$APP_PASS" ]]; then
     while true; do
-        echo -n -e "  ▶ 请输入 Web 面板统一密码 (必须 ≥ 12 位): "
+        echo -n -e "  ▶ 请输入 Web 面板统一密码 (必须 ≥ 8 位): "
         read -s APP_PASS < /dev/tty; echo ""
-        if [[ ${#APP_PASS} -ge 12 ]]; then break; fi
+        if [[ ${#APP_PASS} -ge 8 ]]; then break; fi
         log_warn "密码过短，请重新输入！"
     done
     echo ""
